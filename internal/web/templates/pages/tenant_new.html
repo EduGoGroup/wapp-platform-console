@@ -1,0 +1,47 @@
+{{ define "tenant_new.html" }}
+<div style="max-width: 600px; margin: 0 auto;">
+    <div style="margin-bottom: 1.5rem;">
+        <a href="/" class="btn btn--text" style="color: #64748B; padding-left: 0;">← Volver al listado</a>
+        <h1 class="wapp-title" style="margin-top: 0.5rem;">Dar de Alta Nueva Empresa</h1>
+        <p class="wapp-subtitle">Crea el tenant en la plataforma para habilitar su operación.</p>
+    </div>
+
+    {{ if .Error }}
+    <div class="wapp-snackbar wapp-snackbar--error" role="alert">
+        {{ .Error }}
+    </div>
+    {{ end }}
+
+    <div class="wapp-card">
+        <form method="POST" action="/tenants/new" class="wapp-form-stack">
+            <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
+
+            <div class="wapp-field">
+                <label class="wapp-field__label" for="tenant-slug">Slug identificador (único, kebab-case)</label>
+                <input class="wapp-field__control" type="text" id="tenant-slug" name="slug"
+                       required placeholder="mi-empresa-cliente" value="{{ .Slug }}" pattern="^[a-z0-9-]+$">
+                <small style="color: #64748B; font-size: 0.75rem;">Solo minúsculas, números y guiones. Ejemplo: <code>panaderia-pedro</code></small>
+            </div>
+
+            <div class="wapp-field">
+                <label class="wapp-field__label" for="tenant-name">Nombre comercial</label>
+                <input class="wapp-field__control" type="text" id="tenant-name" name="display_name"
+                       required placeholder="Panadería Pedro C.A." value="{{ .DisplayName }}">
+            </div>
+
+            <div class="wapp-field">
+                <label class="wapp-field__label" for="tenant-plan">Plan inicial</label>
+                <select class="wapp-field__control" id="tenant-plan" name="plan_id">
+                    <option value="standard" selected>Standard</option>
+                    <option value="enterprise">Enterprise</option>
+                    <option value="pro">Pro</option>
+                </select>
+            </div>
+
+            <div class="wapp-actions" style="margin-top: 1rem;">
+                <button type="submit" class="wapp-btn wapp-btn--filled">Crear Empresa</button>
+            </div>
+        </form>
+    </div>
+</div>
+{{ end }}

@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>wApp Plataforma · {{ .Title }}</title>
+
+    <link rel="stylesheet" href="/static/css/wapp-tokens.css">
+    <link rel="stylesheet" href="/static/css/wapp-components.css">
+    <link rel="stylesheet" href="/static/css/theme-platform.css">
+    <link rel="stylesheet" href="/static/css/app.css">
+
+    <style nonce="{{ .Nonce }}">
+        html { background: #F8FAFC; }
+    </style>
+</head>
+<body>
+
+    <header class="app-bar">
+        <a href="/" class="app-bar__brand">
+            <span class="app-bar__logo" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                    <path d="M12 2a10 10 0 0 0-8.5 15.3L2 22l4.8-1.5A10 10 0 1 0 12 2Zm0 2a8 8 0 1 1-4.2 14.8l-.3-.2-2.7.8.8-2.6-.2-.3A8 8 0 0 1 12 4Z"/>
+                </svg>
+            </span>
+            <span class="app-bar__titles">
+                <span class="app-bar__name">wApp</span>
+                <span class="app-bar__sub">Plataforma</span>
+            </span>
+        </a>
+        {{ if .IsAuthenticated }}
+        <nav class="app-bar__actions">
+            <a href="/" class="btn btn--text{{ if eq .CurrentPath "/" }} btn--active{{ end }}">Empresas</a>
+            <a href="/tenants/new" class="btn btn--text{{ if eq .CurrentPath "/tenants/new" }} btn--active{{ end }}">Nueva Empresa</a>
+            <a href="/access-requests" class="btn btn--text{{ if eq .CurrentPath "/access-requests" }} btn--active{{ end }}">Bandeja de Acceso</a>
+            <form method="POST" action="/logout" style="margin: 0;">
+                <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
+                <button type="submit" class="btn btn--text">Cerrar sesión</button>
+            </form>
+        </nav>
+        {{ end }}
+    </header>
+
+    <main class="app-main">
+        {{ yield .ContentTemplate . }}
+    </main>
+
+</body>
+</html>

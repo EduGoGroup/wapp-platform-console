@@ -1,0 +1,296 @@
+/* ==========================================================================
+   wApp Platform Console — Stylesheet
+   ========================================================================== */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  color: #1C1B1F;
+  background-color: #F8FAFC;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  height: 64px;
+  background-color: var(--wapp-app-header-bg, #1E1B4B);
+  color: var(--wapp-app-header-fg, #EEF2FF);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+
+.app-bar__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.app-bar__logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background-color: var(--wapp-app-header-badge-bg, rgba(99, 102, 241, 0.2));
+  color: var(--wapp-app-header-badge-fg, #C7D2FE);
+}
+
+.app-bar__titles {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.app-bar__name {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.app-bar__sub {
+  font-size: 0.875rem;
+  font-weight: 500;
+  opacity: 0.8;
+}
+
+.app-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  text-decoration: none;
+  border: none;
+  transition: background-color 0.15s ease;
+}
+
+.btn--text {
+  background: transparent;
+  color: inherit;
+}
+.btn--text:hover {
+  background-color: rgba(255,255,255,0.1);
+}
+.btn--active {
+  background-color: rgba(255,255,255,0.2);
+  font-weight: 600;
+}
+
+.app-main {
+  flex: 1;
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.wapp-auth-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 120px);
+}
+
+.wapp-card {
+  background: #FFFFFF;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  border: 1px solid #E2E8F0;
+}
+
+.wapp-login-card {
+  width: 100%;
+  max-width: 420px;
+}
+
+.wapp-login-header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.wapp-brand-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background-color: #EEF2FF;
+  color: #4338CA;
+  margin-bottom: 0.75rem;
+}
+
+.wapp-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.wapp-subtitle {
+  font-size: 0.875rem;
+  color: #64748B;
+  margin-top: 0.25rem;
+}
+
+.wapp-form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.wapp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.wapp-field__label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #334155;
+}
+
+.wapp-field__control {
+  padding: 0.625rem 0.875rem;
+  font-size: 0.9375rem;
+  border: 1px solid #CBD5E1;
+  border-radius: 6px;
+  background-color: #FFFFFF;
+  color: #0F172A;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.wapp-field__control:focus {
+  border-color: #4338CA;
+  box-shadow: 0 0 0 3px rgba(67, 56, 202, 0.15);
+}
+
+.wapp-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.wapp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.625rem 1.25rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.wapp-btn--filled {
+  background-color: #4338CA;
+  color: #FFFFFF;
+}
+.wapp-btn--filled:hover {
+  background-color: #3730A3;
+}
+
+.wapp-btn--danger {
+  background-color: #DC2626;
+  color: #FFFFFF;
+}
+.wapp-btn--danger:hover {
+  background-color: #B91C1C;
+}
+
+.wapp-btn--outlined {
+  background-color: transparent;
+  border-color: #CBD5E1;
+  color: #334155;
+}
+.wapp-btn--outlined:hover {
+  background-color: #F1F5F9;
+}
+
+.wapp-snackbar {
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  margin-bottom: 1rem;
+}
+.wapp-snackbar--error {
+  background-color: #FEF2F2;
+  color: #991B1B;
+  border: 1px solid #F87171;
+}
+.wapp-snackbar--success {
+  background-color: #F0FDF4;
+  color: #166534;
+  border: 1px solid #86EFAC;
+}
+
+/* Tablas */
+.wapp-table-container {
+  overflow-x: auto;
+  background: #FFFFFF;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+}
+
+.wapp-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.wapp-table th {
+  background-color: #F8FAFC;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  color: #475569;
+  border-bottom: 1px solid #E2E8F0;
+}
+
+.wapp-table td {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid #F1F5F9;
+  color: #1E293B;
+}
+
+.wapp-table tr:last-child td {
+  border-bottom: none;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.badge--success { background-color: #DCFCE7; color: #15803D; }
+.badge--danger { background-color: #FEE2E2; color: #B91C1C; }
+.badge--info { background-color: #E0E7FF; color: #4338CA; }

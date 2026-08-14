@@ -1,0 +1,56 @@
+{{ define "tenants.html" }}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+        <h1 class="wapp-title">Empresas Registradas</h1>
+        <p class="wapp-subtitle">Gestión cross-tenant y control de servicio</p>
+    </div>
+    <div>
+        <a href="/tenants/new" class="btn btn--active" style="background: #4338CA; color: white; text-decoration: none; padding: 0.625rem 1.25rem;">+ Nueva Empresa</a>
+    </div>
+</div>
+
+{{ if .Error }}
+<div class="wapp-snackbar wapp-snackbar--error" role="alert">
+    {{ .Error }}
+</div>
+{{ end }}
+
+<div class="wapp-table-container">
+    <table class="wapp-table">
+        <thead>
+            <tr>
+                <th>Empresa</th>
+                <th>Slug</th>
+                <th>Plan</th>
+                <th>Estado</th>
+                <th style="text-align: right;">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{ range .Tenants }}
+            <tr>
+                <td><strong>{{ .DisplayName }}</strong></td>
+                <td><code>{{ .Slug }}</code></td>
+                <td><span class="badge badge--info">{{ if .PlanID }}{{ .PlanID }}{{ else }}standard{{ end }}</span></td>
+                <td>
+                    {{ if .RevokedAt }}
+                    <span class="badge badge--danger">🔴 Cortada</span>
+                    {{ else }}
+                    <span class="badge badge--success">🟢 Activa</span>
+                    {{ end }}
+                </td>
+                <td style="text-align: right;">
+                    <a href="/tenants/{{ .ID }}" class="btn btn--text" style="color: #4338CA; font-weight: 600;">Ver detalle →</a>
+                </td>
+            </tr>
+            {{ else }}
+            <tr>
+                <td colspan="5" style="text-align: center; padding: 2rem; color: #64748B;">
+                    No hay empresas registradas en la plataforma.
+                </td>
+            </tr>
+            {{ end }}
+        </tbody>
+    </table>
+</div>
+{{ end }}
