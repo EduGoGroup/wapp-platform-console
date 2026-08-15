@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 )
 
 // InstallationItem representa un Edge instalado de la empresa.
@@ -32,7 +33,7 @@ func NewInstallationsClient(t *Transport) *InstallationsClient {
 
 // ListInstallations consulta los Edges de una empresa.
 func (c *InstallationsClient) ListInstallations(ctx context.Context, accessToken, tenantID string) ([]InstallationItem, error) {
-	req, err := c.t.newAuthedRequest(ctx, http.MethodGet, "/admin/tenants/"+tenantID+"/installations", nil, accessToken)
+	req, err := c.t.newAuthedRequest(ctx, http.MethodGet, "/admin/tenants/"+url.PathEscape(tenantID)+"/installations", nil, accessToken)
 	if err != nil {
 		return nil, err
 	}

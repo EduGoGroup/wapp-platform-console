@@ -97,7 +97,7 @@ func (c *TenantsClient) ListTenants(ctx context.Context, accessToken string, lim
 
 // GetTenant obtiene el detalle de una empresa.
 func (c *TenantsClient) GetTenant(ctx context.Context, accessToken, id string) (*TenantDetail, error) {
-	req, err := c.t.newAuthedRequest(ctx, http.MethodGet, "/admin/tenants/"+id, nil, accessToken)
+	req, err := c.t.newAuthedRequest(ctx, http.MethodGet, "/admin/tenants/"+url.PathEscape(id), nil, accessToken)
 	if err != nil {
 		return nil, err
 	}
@@ -199,7 +199,7 @@ func (c *TenantsClient) IssueEnrollmentCode(ctx context.Context, accessToken, te
 	payload := map[string]int{
 		"ttl": ttlSecs,
 	}
-	req, err := c.t.newAuthedJSONRequest(ctx, http.MethodPost, "/admin/tenants/"+tenantID+"/enrollment-codes", payload, accessToken)
+	req, err := c.t.newAuthedJSONRequest(ctx, http.MethodPost, "/admin/tenants/"+url.PathEscape(tenantID)+"/enrollment-codes", payload, accessToken)
 	if err != nil {
 		return nil, err
 	}

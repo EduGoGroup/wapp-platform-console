@@ -76,7 +76,7 @@ func (c *AccessRequestsClient) ApproveAccessRequest(ctx context.Context, accessT
 		"role":      role,
 		"systems":   systems,
 	}
-	req, err := c.t.newAuthedJSONRequest(ctx, http.MethodPost, "/admin/access-requests/"+id+"/approve", payload, accessToken)
+	req, err := c.t.newAuthedJSONRequest(ctx, http.MethodPost, "/admin/access-requests/"+url.PathEscape(id)+"/approve", payload, accessToken)
 	if err != nil {
 		return err
 	}
@@ -97,7 +97,7 @@ func (c *AccessRequestsClient) RejectAccessRequest(ctx context.Context, accessTo
 	payload := map[string]string{
 		"reason": reason,
 	}
-	req, err := c.t.newAuthedJSONRequest(ctx, http.MethodPost, "/admin/access-requests/"+id+"/reject", payload, accessToken)
+	req, err := c.t.newAuthedJSONRequest(ctx, http.MethodPost, "/admin/access-requests/"+url.PathEscape(id)+"/reject", payload, accessToken)
 	if err != nil {
 		return err
 	}
