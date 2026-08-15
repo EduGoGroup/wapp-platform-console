@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -148,6 +149,46 @@ func TestStaticCSS_ServedSameOrigin(t *testing.T) {
 				t.Fatalf("GET %s Content-Type = %q, want text/css", path, ct)
 			}
 		})
+	}
+}
+
+// TestNewRouter_DoesNotLeakRateLimiterGoroutine fija el hallazgo #6 de CODE-REVIEW-2026-08-15:
+// NewRouter descartaba el cleanup del rate limiter, así que si algún caller activaba
+// RateLimitEnabled, la goroutine de cleanupLoop (ticker de 1 minuto, bloqueada en select{} hasta que
+// alguien cierre l.stop) quedaba viva para siempre. Aquí se llama NewRouter muchas veces con el
+// limiter activo y se comprueba que el conteo de goroutines converge de vuelta a la línea base: sin
+// el fix, cada llamada deja una goroutine colgada que nunca sale.
+//
+// Deliberadamente SIN t.Parallel(): runtime.NumGoroutine() es un conteo global del proceso, y correr
+// junto a los demás tests (todos marcados Parallel) lo llenaría de ruido ajeno.
+func TestNewRouter_DoesNotLeakRateLimiterGoroutine(t *testing.T) {
+	cfg := testConfig("http://127.0.0.1:8100", "http://127.0.0.1:8103", "http://127.0.0.1:8200")
+	cfg.RateLimitEnabled = true
+	cfg.RateLimitRPS = 5
+	cfg.RateLimitBurst = 10
+
+	runtime.GC()
+	baseline := runtime.NumGoroutine()
+
+	const iterations = 50
+	for i := 0; i < iterations; i++ {
+		_ = NewRouter(cfg)
+	}
+
+	var final int
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		runtime.Gosched()
+		final = runtime.NumGoroutine()
+		if final <= baseline+2 || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if final > baseline+2 {
+		t.Fatalf("goroutines tras %d NewRouter() con RateLimitEnabled=true: baseline=%d, final=%d "+
+			"(fuga de cleanupLoop: NewRouter descartó el cleanup del limiter)", iterations, baseline, final)
 	}
 }
 

@@ -26,9 +26,16 @@ func init() {
 	gin.SetMode(gin.ReleaseMode)
 }
 
-// NewRouter construye el motor Gin sin rate limiter desmontable.
+// NewRouter construye el motor Gin sin rate limiter desmontable: si cfg.RateLimitEnabled crea uno,
+// se cierra de inmediato en vez de descartarse. Esta función no tiene forma de exponer el cleanup más
+// tarde (usa NewRouterWithLimiter si necesitas apagarlo de forma ordenada al final de la vida del
+// router); descartarlo sin más dejaba viva para siempre la goroutine de cleanupLoop de
+// keyedRateLimiter en cualquier caller que activara el limiter por esta vía.
 func NewRouter(cfg *config.Config) *gin.Engine {
-	router, _ := NewRouterWithLimiter(cfg)
+	router, cleanup := NewRouterWithLimiter(cfg)
+	if cleanup != nil {
+		cleanup()
+	}
 	return router
 }
 
@@ -126,11 +133,11 @@ func NewRouterWithLimiter(cfg *config.Config) (*gin.Engine, func()) {
 	router.Use(CSRFMiddleware(cfg))
 
 	// Clientes
-	adminTransport := adminclient.NewTransport(cfg.AdminAPIBaseURL)
+	adminTransport := adminclient.NewTransport(cfg.AdminAPIBaseURL, cfg.UpstreamTimeout)
 	tenantsClient := adminclient.NewTenantsClient(adminTransport)
 	installationsClient := adminclient.NewInstallationsClient(adminTransport)
 	accessRequestsClient := adminclient.NewAccessRequestsClient(adminTransport)
-	authClient := authclient.NewClient(cfg.IdentityBaseURL, cfg.PublicAPIBaseURL)
+	authClient := authclient.NewClient(cfg.IdentityBaseURL, cfg.PublicAPIBaseURL, cfg.UpstreamTimeout)
 
 	authH := NewAuthHandler(cfg, authClient)
 	tenantsH := NewTenantsHandler(tenantsClient, installationsClient)

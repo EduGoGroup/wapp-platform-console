@@ -99,12 +99,16 @@ func (g *refreshGroup) do(key string, fn func() (any, error)) (any, error) {
 	g.m[key] = c
 	g.mu.Unlock()
 
+	// defer, no al final de la función: si fn() entra en pánico, gin.Recovery() lo atrapa aguas
+	// arriba, pero sin este defer c.wg.Done() y el delete() nunca correrían, y toda petición
+	// posterior con la misma key se quedaría colgada para siempre en c.wg.Wait() (sin timeout).
+	defer func() {
+		c.wg.Done()
+		g.mu.Lock()
+		delete(g.m, key)
+		g.mu.Unlock()
+	}()
+
 	c.val, c.err = fn()
-	c.wg.Done()
-
-	g.mu.Lock()
-	delete(g.m, key)
-	g.mu.Unlock()
-
 	return c.val, c.err
 }

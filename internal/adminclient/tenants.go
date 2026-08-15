@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -88,7 +89,7 @@ func (c *TenantsClient) ListTenants(ctx context.Context, accessToken string, lim
 	}
 
 	var res TenantListResult
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxSuccessBody)).Decode(&res); err != nil {
 		return nil, fmt.Errorf("adminclient: decode tenants: %w", err)
 	}
 	return &res, nil
@@ -111,7 +112,7 @@ func (c *TenantsClient) GetTenant(ctx context.Context, accessToken, id string) (
 	}
 
 	var detail TenantDetail
-	if err := json.NewDecoder(resp.Body).Decode(&detail); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxSuccessBody)).Decode(&detail); err != nil {
 		return nil, fmt.Errorf("adminclient: decode tenant detail: %w", err)
 	}
 	return &detail, nil
@@ -139,7 +140,7 @@ func (c *TenantsClient) CreateTenant(ctx context.Context, accessToken, slug, dis
 	}
 
 	var res TenantCreateResult
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxSuccessBody)).Decode(&res); err != nil {
 		return nil, fmt.Errorf("adminclient: decode create tenant result: %w", err)
 	}
 	return &res, nil
@@ -213,7 +214,7 @@ func (c *TenantsClient) IssueEnrollmentCode(ctx context.Context, accessToken, te
 	}
 
 	var res EnrollmentCodeResult
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxSuccessBody)).Decode(&res); err != nil {
 		return nil, fmt.Errorf("adminclient: decode enrollment code result: %w", err)
 	}
 	return &res, nil

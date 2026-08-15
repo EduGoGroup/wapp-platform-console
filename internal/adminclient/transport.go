@@ -16,6 +16,12 @@ import (
 const (
 	defaultTimeout   = 15 * time.Second
 	maxRejectionBody = 4096
+
+	// maxSuccessBody acota los cuerpos de ÉXITO (antes solo el camino de error estaba acotado). El
+	// listado más grande (tenants) son filas cortas; 1 MiB es generoso para eso. :8100 es loopback y
+	// de confianza, así que el riesgo es bajo, pero es una asimetría gratuita dejar un decode sin
+	// límite mientras el de al lado sí lo tiene.
+	maxSuccessBody = 1 << 20
 )
 
 // Transport maneja la configuración base HTTP contra :8100.
@@ -24,11 +30,16 @@ type Transport struct {
 	HTTPClient *http.Client
 }
 
-// NewTransport construye un Transport acoplado al listener admin (:8100).
-func NewTransport(baseURL string) *Transport {
+// NewTransport construye un Transport acoplado al listener admin (:8100). timeout <= 0 cae al
+// default (15s): antes defaultTimeout quedaba fijo sin importar cfg.UpstreamTimeout, así que
+// WAPP_CONSOLE_UPSTREAM_TIMEOUT_SECS no tenía ningún efecto sobre las llamadas admin.
+func NewTransport(baseURL string, timeout time.Duration) *Transport {
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
 	return &Transport{
 		BaseURL:    strings.TrimRight(baseURL, "/"),
-		HTTPClient: &http.Client{Timeout: defaultTimeout},
+		HTTPClient: &http.Client{Timeout: timeout},
 	}
 }
 

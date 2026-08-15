@@ -33,7 +33,8 @@ func CSRFMiddleware(cfg *config.Config) gin.HandlerFunc {
 
 		c.Set(csrfFieldName, token)
 
-		if c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPut || c.Request.Method == http.MethodDelete {
+		if c.Request.Method == http.MethodPost || c.Request.Method == http.MethodPut ||
+			c.Request.Method == http.MethodPatch || c.Request.Method == http.MethodDelete {
 			sentToken := c.PostForm(csrfFieldName)
 			if sentToken == "" {
 				sentToken = c.GetHeader("X-CSRF-Token")

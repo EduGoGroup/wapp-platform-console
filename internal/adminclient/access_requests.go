@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 )
@@ -62,7 +63,7 @@ func (c *AccessRequestsClient) ListAccessRequests(ctx context.Context, accessTok
 	}
 
 	var res accessRequestsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxSuccessBody)).Decode(&res); err != nil {
 		return nil, fmt.Errorf("adminclient: decode access requests: %w", err)
 	}
 	return res.Items, nil

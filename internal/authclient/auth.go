@@ -58,12 +58,17 @@ type Client struct {
 	httpClient  *http.Client
 }
 
-// NewClient construye el cliente de autenticación.
-func NewClient(identityURL, publicAPIURL string) *Client {
+// NewClient construye el cliente de autenticación. timeout <= 0 cae al default (15s): antes
+// defaultTimeout quedaba fijo sin importar cfg.UpstreamTimeout, así que
+// WAPP_CONSOLE_UPSTREAM_TIMEOUT_SECS no tenía ningún efecto sobre login/refresh/logout.
+func NewClient(identityURL, publicAPIURL string, timeout time.Duration) *Client {
+	if timeout <= 0 {
+		timeout = defaultTimeout
+	}
 	return &Client{
 		identityURL: strings.TrimRight(identityURL, "/"),
 		publicAPI:   strings.TrimRight(publicAPIURL, "/"),
-		httpClient:  &http.Client{Timeout: defaultTimeout},
+		httpClient:  &http.Client{Timeout: timeout},
 	}
 }
 
@@ -89,6 +94,10 @@ func (c *Client) Refresh(ctx context.Context, refreshToken string) (*AuthResult,
 }
 
 // Logout revoca la sesión en identity.
+//
+// Propaga el StatusCode del upstream: si identity responde con error, el refresh token sigue vivo
+// allí aunque el operador ya no tenga cookie local. El llamante decide qué hacer con ese error (la
+// consola cierra la sesión local de todos modos, pero el fallo debe quedar en el log, no perderse).
 func (c *Client) Logout(ctx context.Context, refreshToken string) error {
 	payload := map[string]string{"refresh_token": refreshToken}
 	body, _ := json.Marshal(payload)
@@ -99,10 +108,15 @@ func (c *Client) Logout(ctx context.Context, refreshToken string) error {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		return fmt.Errorf("authclient: identity logout: %w", err)
 	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	_ = resp.Body.Close()
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("authclient: identity logout retornó status %d", resp.StatusCode)
+	}
 	return nil
 }
 

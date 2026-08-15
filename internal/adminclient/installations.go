@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -46,7 +47,7 @@ func (c *InstallationsClient) ListInstallations(ctx context.Context, accessToken
 	}
 
 	var res installationsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&res); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxSuccessBody)).Decode(&res); err != nil {
 		return nil, fmt.Errorf("adminclient: decode installations: %w", err)
 	}
 	return res.Items, nil

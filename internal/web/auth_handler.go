@@ -66,10 +66,17 @@ func (h *AuthHandler) DoLogin(c *gin.Context) {
 }
 
 // DoLogout finaliza la sesión.
+//
+// La cookie local se borra SIEMPRE, aunque falle la revocación remota: el operador no debe quedarse
+// con una sesión que él cree cerrada. Pero el fallo no se traga en silencio (antes Logout devolvía
+// nil pasara lo que pasara): si identity responde con error, el refresh token sigue vivo allí, y eso
+// tiene que quedar en el log para que alguien lo note.
 func (h *AuthHandler) DoLogout(c *gin.Context) {
 	if raw, err := c.Cookie(sessionCookieName); err == nil && raw != "" {
 		if sess, derr := decodeSession(raw); derr == nil && sess.RefreshToken != "" {
-			_ = h.auth.Logout(c.Request.Context(), sess.RefreshToken)
+			if lerr := h.auth.Logout(c.Request.Context(), sess.RefreshToken); lerr != nil {
+				slog.Warn("logout en identity falló; la sesión se cierra localmente igualmente", "error", lerr)
+			}
 		}
 	}
 	h.clearSession(c)

@@ -221,6 +221,38 @@ func TestAuth_LogoutClearsCookie(t *testing.T) {
 	}
 }
 
+// TestAuth_LogoutClearsCookieEvenIfIdentityFails complementa TestAuth_LogoutClearsCookie (que solo
+// cubre el 200): T4.4/CODE-REVIEW-2026-08-15 #3 exige que la cookie local se borre SIEMPRE, aunque
+// identity responda con error — el operador no debe quedarse con una sesión que él cree cerrada—,
+// pero el fallo tiene que quedar en el log en vez de perderse en silencio.
+func TestAuth_LogoutClearsCookieEvenIfIdentityFails(t *testing.T) {
+	t.Parallel()
+	identitySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer identitySrv.Close()
+
+	cfg := testConfig("http://127.0.0.1:8100", "http://127.0.0.1:8103", identitySrv.URL)
+	router := NewRouter(cfg)
+
+	sess := adminSessionCookie(t)
+	rec := postFormWithCSRF(router, "/logout", url.Values{}, sess)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("POST /logout status = %d, want 303", rec.Code)
+	}
+
+	cleared := false
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == sessionCookieName && c.MaxAge < 0 {
+			cleared = true
+		}
+	}
+	if !cleared {
+		t.Fatal("cookie de sesión debe borrarse localmente aunque identity falle")
+	}
+}
+
 // TestAuth_ExpiredSessionRedirectsToLogin ejercita sessionValid() de verdad: hasta ahora el único test
 // sin sesión (TestAuth_UnauthenticatedRedirectsToLogin) no pasa por parseAccessClaims/sessionValid, así
 // que un sessionValid() que siempre devolviera true no lo habría cazado. Aquí la cookie SÍ decodifica a

@@ -18,9 +18,7 @@
         {{ end }}
 
         <form id="login-form" method="POST" action="/login" class="wapp-form-stack" autocomplete="on">
-            {{ if .CSRFToken }}
             <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
-            {{ end }}
 
             <div class="wapp-field">
                 <label class="wapp-field__label" for="login-email">Correo de operador</label>
