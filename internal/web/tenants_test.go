@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 )
@@ -199,6 +200,61 @@ func TestTenants_RevokeUnreachableTenantDoesNotCallRevoke(t *testing.T) {
 	}
 }
 
+// TestTenants_RevokeAndSlugMismatchAreVisibleToOperator cubre A-08: hoy la página se recarga muda tras
+// un corte, sea que tuvo éxito o que el slug no coincidió, y el operador no puede distinguir "no hizo
+// nada raro" de "cortó de verdad". Este test sigue la redirección de cada camino y confirma que el
+// mensaje fijo correspondiente aparece en el HTML resultante.
+func TestTenants_RevokeAndSlugMismatchAreVisibleToOperator(t *testing.T) {
+	t.Parallel()
+
+	adminSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/admin/tenants/t-1" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "t-1", "slug": "empresa-alfa", "display_name": "Empresa Alfa",
+			})
+		case r.URL.Path == "/admin/tenants/t-1/installations" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": []any{}})
+		case r.URL.Path == "/admin/tenants/revoke" && r.Method == http.MethodPost:
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer adminSrv.Close()
+
+	cfg := testConfig(adminSrv.URL, "http://127.0.0.1:8103", "http://127.0.0.1:8200")
+	router := NewRouter(cfg)
+	sess := adminSessionCookie(t)
+
+	// Camino 1: slug incorrecto -> el corte no se ejecuta y el operador lo VE.
+	formMismatch := url.Values{"slug_confirm": {"otro-slug"}, "reason": {"Mora"}}
+	recMismatch := postFormWithCSRF(router, "/tenants/t-1/revoke", formMismatch, sess)
+	loc := recMismatch.Header().Get("Location")
+
+	getMismatch := httptest.NewRequest(http.MethodGet, loc, nil)
+	getMismatch.AddCookie(sess)
+	recGetMismatch := httptest.NewRecorder()
+	router.ServeHTTP(recGetMismatch, getMismatch)
+	if !strings.Contains(recGetMismatch.Body.String(), flashError("slug_mismatch")) {
+		t.Fatalf("esperado el mensaje de slug_mismatch visible tras el redirect a %q", loc)
+	}
+
+	// Camino 2: slug correcto -> el corte se ejecuta y el operador lo VE.
+	formMatch := url.Values{"slug_confirm": {"empresa-alfa"}, "reason": {"Mora"}}
+	recMatch := postFormWithCSRF(router, "/tenants/t-1/revoke", formMatch, sess)
+	loc2 := recMatch.Header().Get("Location")
+
+	getMatch := httptest.NewRequest(http.MethodGet, loc2, nil)
+	getMatch.AddCookie(sess)
+	recGetMatch := httptest.NewRecorder()
+	router.ServeHTTP(recGetMatch, getMatch)
+	if !strings.Contains(recGetMatch.Body.String(), flashSuccess("revoked")) {
+		t.Fatalf("esperado el mensaje de éxito visible tras el redirect a %q", loc2)
+	}
+}
+
 func TestTenants_CreateAndIssueEnrollmentCode(t *testing.T) {
 	t.Parallel()
 
@@ -257,5 +313,106 @@ func TestTenants_CreateAndIssueEnrollmentCode(t *testing.T) {
 	}
 	if !strings.Contains(recCode.Body.String(), "ACT-12345-67890") {
 		t.Fatal("esperado código de activación en pantalla")
+	}
+}
+
+// TestTenants_IssueEnrollmentCode_SendsTTLKeyNotTTLSeconds fija el contrato de A-03: el servidor
+// (platformadmin/handlers.go) lee la clave JSON "ttl", no "ttl_seconds". encoding/json ignora las claves
+// desconocidas sin error, así que un desajuste aquí hace que el TTL nunca llegue y el código viva siempre
+// el default del servidor (24h) sin ningún aviso ni error visible. Este test no depende de :8100 real:
+// verifica el payload que el cliente arma.
+func TestTenants_IssueEnrollmentCode_SendsTTLKeyNotTTLSeconds(t *testing.T) {
+	t.Parallel()
+
+	var (
+		mu   sync.Mutex
+		body map[string]any
+	)
+
+	adminSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/admin/tenants/t-1/enrollment-codes" && r.Method == http.MethodPost:
+			mu.Lock()
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			mu.Unlock()
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"code":       "ACT-CONTRACT",
+				"expires_at": "2026-08-15T05:00:00Z",
+			})
+		case r.URL.Path == "/admin/tenants/t-1" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "t-1", "slug": "cliente-1", "display_name": "Cliente Uno",
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer adminSrv.Close()
+
+	cfg := testConfig(adminSrv.URL, "http://127.0.0.1:8103", "http://127.0.0.1:8200")
+	router := NewRouter(cfg)
+	sess := adminSessionCookie(t)
+
+	rec := postFormWithCSRF(router, "/tenants/t-1/enrollment-codes", url.Values{}, sess)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if _, hasWrongKey := body["ttl_seconds"]; hasWrongKey {
+		t.Fatalf("el payload no debe llevar 'ttl_seconds' (el servidor lo ignora en silencio): %v", body)
+	}
+	ttl, ok := body["ttl"]
+	if !ok {
+		t.Fatalf("el payload debe llevar la clave 'ttl': %v", body)
+	}
+	if ttl != float64(86400) {
+		t.Fatalf("ttl = %v, want 86400", ttl)
+	}
+}
+
+// TestTenants_IssueEnrollmentCode_SurvivesTenantRereadFailure cubre la mitad contenida de M-10: el código
+// ya se emitió (es de un solo uso) cuando la relectura de GetTenant falla, así que perderlo sería peor
+// que mostrar la página con datos de empresa incompletos. Antes de este fix, el error se descartaba y
+// `tenant` quedaba nil: html/template abortaba al evaluar `.Tenant.DisplayName` sobre un puntero nil, y
+// como Gin ya había escrito `200 OK`, la página quedaba truncada.
+func TestTenants_IssueEnrollmentCode_SurvivesTenantRereadFailure(t *testing.T) {
+	t.Parallel()
+
+	adminSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/admin/tenants/t-1/enrollment-codes" && r.Method == http.MethodPost:
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"code":       "ACT-SURVIVES",
+				"expires_at": "2026-08-15T05:00:00Z",
+			})
+		case r.URL.Path == "/admin/tenants/t-1" && r.Method == http.MethodGet:
+			// La relectura del tenant falla (p.ej. :8100 con hipo momentáneo).
+			w.WriteHeader(http.StatusInternalServerError)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer adminSrv.Close()
+
+	cfg := testConfig(adminSrv.URL, "http://127.0.0.1:8103", "http://127.0.0.1:8200")
+	router := NewRouter(cfg)
+	sess := adminSessionCookie(t)
+
+	rec := postFormWithCSRF(router, "/tenants/t-1/enrollment-codes", url.Values{}, sess)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "ACT-SURVIVES") {
+		t.Fatalf("el código emitido debe mostrarse aunque falle la relectura del tenant, body: %s", body)
+	}
+	if !strings.Contains(body, "</html>") {
+		t.Fatal("la página no debe quedar truncada cuando falla la relectura del tenant")
 	}
 }

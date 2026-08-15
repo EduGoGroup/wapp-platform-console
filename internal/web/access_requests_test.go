@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 )
 
@@ -113,23 +114,19 @@ func TestAccessRequests_ListApproveReject(t *testing.T) {
 	}
 }
 
-// TestAccessRequests_ApproveDefaultsSystemsWhenNoneSelected cubre el default de
-// access_requests_handler.go:67-69 (`if len(systems)==0`): si el operador no marca ninguna casilla de
-// "Apps", la aprobación debe caer a ["wapp.bff", "wapp.edge"], no a una lista vacía que dejaría al
-// usuario sin acceso a ningún sistema tras ser "aprobado".
-func TestAccessRequests_ApproveDefaultsSystemsWhenNoneSelected(t *testing.T) {
+// TestAccessRequests_ApproveRejectsWhenNoSystemsSelected cubre C-05: si el operador no marca ninguna
+// casilla de "Apps" (a propósito o por error), la aprobación NO debe inventar un default que conceda
+// acceso que nadie pidió. Antes de este fix, access_requests_handler.go:67-69 caía a
+// ["wapp.bff", "wapp.edge"] en ese caso; ahora debe rechazar con ?error=missing_systems y no llamar al
+// endpoint de aprobación en absoluto.
+func TestAccessRequests_ApproveRejectsWhenNoSystemsSelected(t *testing.T) {
 	t.Parallel()
 
-	var (
-		mu           sync.Mutex
-		approvedBody map[string]any
-	)
+	var approveCalled atomic.Bool
 
 	adminSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/admin/access-requests/req-1/approve" && r.Method == http.MethodPost {
-			mu.Lock()
-			_ = json.NewDecoder(r.Body).Decode(&approvedBody)
-			mu.Unlock()
+			approveCalled.Store(true)
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -147,12 +144,184 @@ func TestAccessRequests_ApproveDefaultsSystemsWhenNoneSelected(t *testing.T) {
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("POST approve status = %d, want 303", rec.Code)
 	}
+	loc := rec.Header().Get("Location")
+	if !strings.Contains(loc, "error=missing_systems") {
+		t.Fatalf("Location = %q, want error=missing_systems", loc)
+	}
+	if approveCalled.Load() {
+		t.Fatal("no debe llamarse al endpoint de aprobación cuando no hay systems seleccionados")
+	}
+}
 
-	mu.Lock()
-	defer mu.Unlock()
-	got := anySliceToStrings(approvedBody["systems"])
-	if !equalStringSlices(got, []string{"wapp.bff", "wapp.edge"}) {
-		t.Fatalf("systems por defecto = %v, want [wapp.bff wapp.edge]", got)
+// TestAccessRequests_ApproveBadGatewayShowsPartialFeedback cubre M-11 + A-08 para el caso de un 502 de
+// :8100 en la aprobación (la plataforma pudo escribir localmente antes de fallar en la propagación): el
+// operador debe ver un mensaje fijo y DISTINTO del fallo genérico —nunca el texto crudo del upstream—
+// para no reintentar a ciegas una acción que quizás ya se aplicó a medias.
+func TestAccessRequests_ApproveBadGatewayShowsPartialFeedback(t *testing.T) {
+	t.Parallel()
+
+	adminSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/admin/access-requests/req-1/approve" && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"error": "escrito local ok; no se pudo propagar a identity: timeout&detalle=interno",
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer adminSrv.Close()
+
+	cfg := testConfig(adminSrv.URL, "http://127.0.0.1:8103", "http://127.0.0.1:8200")
+	router := NewRouter(cfg)
+	sess := adminSessionCookie(t)
+
+	form := url.Values{"tenant_id": {"t-1"}, "role": {"operator"}, "systems": {"wapp.bff"}}
+	rec := postFormWithCSRF(router, "/access-requests/req-1/approve", form, sess)
+	loc := rec.Header().Get("Location")
+	if !strings.Contains(loc, "error=approve_partial") {
+		t.Fatalf("Location = %q, want error=approve_partial", loc)
+	}
+	if strings.Contains(loc, "timeout") || strings.Contains(loc, "detalle=interno") {
+		t.Fatalf("el mensaje crudo del upstream NUNCA debe reflejarse en la URL: %q", loc)
+	}
+
+	getReq := httptest.NewRequest(http.MethodGet, loc, nil)
+	getReq.AddCookie(sess)
+	recGet := httptest.NewRecorder()
+	router.ServeHTTP(recGet, getReq)
+	if !strings.Contains(recGet.Body.String(), flashError("approve_partial")) {
+		t.Fatal("esperado el mensaje de aprobación parcial visible tras el redirect")
+	}
+}
+
+// TestAccessRequests_PrecargaFromCurrentSystems cubre C-05: las casillas se precargan con lo que el
+// usuario YA tiene (Systems), no con el origen de la solicitud (antes: Origin=="bff" marcaba BFF). Un
+// usuario con wapp.edge que pide acceso desde el BFF debe seguir mostrando Edge marcado, para que
+// aprobar sin tocar nada no le quite el acceso (PUT /users/{id}/systems es declarativo).
+func TestAccessRequests_PrecargaFromCurrentSystems(t *testing.T) {
+	t.Parallel()
+
+	adminSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/admin/access-requests" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{
+						"id": "req-1", "user_id": "u-100", "email": "operador@cliente.com",
+						"origin": "bff", "created_at": "2026-08-14T10:00:00Z",
+						"systems": []string{"wapp.edge"}, "systems_known": true,
+					},
+				},
+			})
+		case r.URL.Path == "/admin/tenants" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": []any{}})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer adminSrv.Close()
+
+	cfg := testConfig(adminSrv.URL, "http://127.0.0.1:8103", "http://127.0.0.1:8200")
+	router := NewRouter(cfg)
+	sess := adminSessionCookie(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/access-requests", nil)
+	req.AddCookie(sess)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `value="wapp.edge" checked`) {
+		t.Fatalf("esperado wapp.edge precargado (checked) por Systems actuales: %s", body)
+	}
+	if strings.Contains(body, `value="wapp.bff" checked`) {
+		t.Fatalf("wapp.bff NO debe salir precargado: el usuario no lo tiene hoy: %s", body)
+	}
+	if strings.Contains(body, "No se pudo leer") {
+		t.Fatal("no debe mostrarse el aviso de estado desconocido cuando systems_known=true")
+	}
+}
+
+// TestAccessRequests_UnknownSystemsWarnsAndLeavesUnchecked cubre el caso en que :8100 todavía no expone
+// "systems"/"systems_known" (u otro fallo de lectura): las casillas deben salir DESMARCADAS —nunca "por
+// si acaso"— y la pantalla debe avisar que no se pudo leer el estado actual, para que el operador no
+// apruebe a ciegas.
+func TestAccessRequests_UnknownSystemsWarnsAndLeavesUnchecked(t *testing.T) {
+	t.Parallel()
+
+	adminSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/admin/access-requests" && r.Method == http.MethodGet:
+			// Respuesta "vieja": sin "systems" ni "systems_known" en absoluto.
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "req-1", "user_id": "u-100", "email": "operador@cliente.com", "origin": "bff", "created_at": "2026-08-14T10:00:00Z"},
+				},
+			})
+		case r.URL.Path == "/admin/tenants" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": []any{}})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer adminSrv.Close()
+
+	cfg := testConfig(adminSrv.URL, "http://127.0.0.1:8103", "http://127.0.0.1:8200")
+	router := NewRouter(cfg)
+	sess := adminSessionCookie(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/access-requests", nil)
+	req.AddCookie(sess)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if strings.Contains(body, `value="wapp.bff" checked`) || strings.Contains(body, `value="wapp.edge" checked`) {
+		t.Fatalf("ninguna casilla debe salir marcada cuando no se pudo leer el estado actual: %s", body)
+	}
+	if !strings.Contains(body, "No se pudo leer") {
+		t.Fatal("esperado un aviso al operador de que no se pudo leer el estado actual")
+	}
+}
+
+// TestAccessRequests_NoPlatformCheckbox es una regresión: la bandeja de autoservicio NUNCA debe ofrecer
+// wapp.platform (decisión de Jhoan, 2026-08-15) — la consola de plataforma no se concede desde una
+// bandeja de autoservicio.
+func TestAccessRequests_NoPlatformCheckbox(t *testing.T) {
+	t.Parallel()
+
+	adminSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/admin/access-requests" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "req-1", "user_id": "u-100", "email": "operador@cliente.com", "origin": "bff", "created_at": "2026-08-14T10:00:00Z"},
+				},
+			})
+		case r.URL.Path == "/admin/tenants" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": []any{}})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer adminSrv.Close()
+
+	cfg := testConfig(adminSrv.URL, "http://127.0.0.1:8103", "http://127.0.0.1:8200")
+	router := NewRouter(cfg)
+	sess := adminSessionCookie(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/access-requests", nil)
+	req.AddCookie(sess)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if strings.Contains(rec.Body.String(), "wapp.platform") {
+		t.Fatal("la bandeja de acceso no debe ofrecer wapp.platform como casilla de autoservicio")
 	}
 }
 

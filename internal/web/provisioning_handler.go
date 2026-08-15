@@ -103,7 +103,19 @@ func (h *ProvisioningHandler) DoIssueEnrollmentCode(c *gin.Context) {
 		return
 	}
 
-	tenant, _ := h.tenants.GetTenant(c.Request.Context(), token, tenantID)
+	// M-10 (parcial): el código YA se emitió y no se puede volver a mostrar (es de un solo uso), así que
+	// perder la relectura del tenant es peor que mostrarlo con datos incompletos. Antes, un error aquí
+	// se descartaba (`_`) y dejaba `tenant` en nil: html/template aborta al evaluar `.Tenant.DisplayName`
+	// sobre un puntero nil, y como Gin ya escribió `200 OK`, la página queda truncada y el código,
+	// perdido. Con este fallback la página siempre renderiza completa.
+	//
+	// (Queda pendiente la otra mitad de M-10: separar esta vista a su propia plantilla con
+	// POST-Redirect-GET para que un F5 no reemita un código nuevo dejando el anterior huérfano.)
+	tenant, terr := h.tenants.GetTenant(c.Request.Context(), token, tenantID)
+	if terr != nil {
+		slog.Warn("no se pudo releer la empresa tras emitir el código; se muestra igual", "tenant_id", tenantID, "error", terr)
+		tenant = &adminclient.TenantDetail{ID: tenantID}
+	}
 
 	c.HTML(http.StatusOK, "base.html", gin.H{
 		"Title":           "Código de Activación",

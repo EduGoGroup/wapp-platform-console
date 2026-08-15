@@ -9,12 +9,21 @@ import (
 )
 
 // AccessRequestItem representa una solicitud en la bandeja de acceso.
+//
+// Systems refleja los sistemas que el usuario YA tiene concedidos hoy (no el origen de la solicitud):
+// PUT /users/{id}/systems es declarativo, así que la bandeja debe precargar las casillas con este valor
+// para no perder acceso que el usuario ya tenía al aprobar. SystemsKnown distingue "el usuario no tiene
+// ningún sistema" (true, Systems vacío) de "el servidor no pudo leer el estado actual" (false): si el
+// upstream aún no expone el campo, el JSON lo deja en su cero (false), y la plantilla debe avisar en
+// vez de precargar casillas "por si acaso".
 type AccessRequestItem struct {
-	ID        string `json:"id"`
-	UserID    string `json:"user_id"`
-	Email     string `json:"email"`
-	Origin    string `json:"origin"`
-	CreatedAt string `json:"created_at"`
+	ID           string   `json:"id"`
+	UserID       string   `json:"user_id"`
+	Email        string   `json:"email"`
+	Origin       string   `json:"origin"`
+	CreatedAt    string   `json:"created_at"`
+	Systems      []string `json:"systems"`
+	SystemsKnown bool     `json:"systems_known"`
 }
 
 type accessRequestsResponse struct {

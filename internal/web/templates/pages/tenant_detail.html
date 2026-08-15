@@ -1,4 +1,15 @@
 {{ define "tenant_detail.html" }}
+{{ if .Error }}
+<div class="wapp-snackbar wapp-snackbar--error" role="alert">
+    {{ .Error }}
+</div>
+{{ end }}
+{{ if .Success }}
+<div class="wapp-snackbar wapp-snackbar--success" role="status">
+    {{ .Success }}
+</div>
+{{ end }}
+
 <div class="mb-5">
     <a href="/" class="btn btn--text link-back">← Volver al listado</a>
     <div class="tenant-header">

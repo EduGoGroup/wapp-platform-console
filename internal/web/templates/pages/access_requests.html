@@ -4,6 +4,17 @@
     <p class="wapp-subtitle">Revisa, asigna empresa y autoriza a los usuarios que se han registrado.</p>
 </div>
 
+{{ if .Error }}
+<div class="wapp-snackbar wapp-snackbar--error" role="alert">
+    {{ .Error }}
+</div>
+{{ end }}
+{{ if .Success }}
+<div class="wapp-snackbar wapp-snackbar--success" role="status">
+    {{ .Success }}
+</div>
+{{ end }}
+
 <div class="wapp-table-container">
     <table class="wapp-table">
         <thead>
@@ -50,11 +61,15 @@
                             </select>
                         </div>
 
+                        {{ if not $req.SystemsKnown }}
+                        <div class="access-systems-warning">
+                            <span class="badge badge--warning">⚠️ No se pudo leer qué sistemas tiene hoy este usuario. Verifica antes de aprobar.</span>
+                        </div>
+                        {{ end }}
                         <div class="access-systems-row">
                             <span>Apps:</span>
-                            <label><input type="checkbox" name="systems" value="wapp.bff" {{ if eq $req.Origin "bff" }}checked{{ end }}> BFF</label>
-                            <label><input type="checkbox" name="systems" value="wapp.edge" {{ if eq $req.Origin "edge" }}checked{{ end }}> Edge</label>
-                            <label><input type="checkbox" name="systems" value="wapp.platform"> Plataforma</label>
+                            <label><input type="checkbox" name="systems" value="wapp.bff" {{ if has $req.Systems "wapp.bff" }}checked{{ end }}> BFF</label>
+                            <label><input type="checkbox" name="systems" value="wapp.edge" {{ if has $req.Systems "wapp.edge" }}checked{{ end }}> Edge</label>
                         </div>
 
                         <button type="submit" class="wapp-btn wapp-btn--filled wapp-btn--compact">

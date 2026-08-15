@@ -190,9 +190,13 @@ func (c *TenantsClient) RestoreTenant(ctx context.Context, accessToken, id, reas
 }
 
 // IssueEnrollmentCode genera un código de enrolamiento de un solo uso para un Edge de la empresa.
+//
+// El servidor lee la clave "ttl" (platformadmin/handlers.go), no "ttl_seconds": encoding/json ignora
+// claves desconocidas sin error, así que un desajuste aquí hace que el TTL elegido por el operador
+// nunca llegue y el código viva siempre el default del servidor (24h) sin ningún aviso.
 func (c *TenantsClient) IssueEnrollmentCode(ctx context.Context, accessToken, tenantID string, ttlSecs int) (*EnrollmentCodeResult, error) {
 	payload := map[string]int{
-		"ttl_seconds": ttlSecs,
+		"ttl": ttlSecs,
 	}
 	req, err := c.t.newAuthedJSONRequest(ctx, http.MethodPost, "/admin/tenants/"+tenantID+"/enrollment-codes", payload, accessToken)
 	if err != nil {

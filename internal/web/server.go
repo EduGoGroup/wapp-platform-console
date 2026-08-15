@@ -42,6 +42,7 @@ func NewRouterWithLimiter(cfg *config.Config) (*gin.Engine, func()) {
 	}
 
 	router.Use(gin.Recovery())
+	router.Use(slogMiddleware())
 	router.Use(SecurityHeadersMiddleware(cfg))
 	router.Use(CORSMiddleware(cfg))
 
@@ -55,6 +56,14 @@ func NewRouterWithLimiter(cfg *config.Config) (*gin.Engine, func()) {
 	var tmpl *template.Template
 	root := template.New("").Funcs(template.FuncMap{
 		"hasPrefix": strings.HasPrefix,
+		"has": func(list []string, item string) bool {
+			for _, v := range list {
+				if v == item {
+					return true
+				}
+			}
+			return false
+		},
 		"yield": func(name string, data any) (template.HTML, error) {
 			if name == "" {
 				return "", nil
@@ -156,6 +165,27 @@ func NewRouterWithLimiter(cfg *config.Config) (*gin.Engine, func()) {
 	}
 
 	return router, cleanup
+}
+
+// slogMiddleware envía cada petición HTTP a slog (diagnóstico). Copiado tal cual de
+// wapp-guardian-bff/internal/web/server.go:271 (M-12): la consola ejecuta cortes y restauraciones
+// cross-tenant, así que necesita la misma traza mínima (quién, desde dónde, qué status) que el BFF.
+func slogMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		path := c.Request.URL.Path
+		c.Next()
+		latency := time.Since(start)
+		status := c.Writer.Status()
+		if status >= 400 {
+			slog.Warn("petición web con error",
+				"status", status, "method", c.Request.Method, "path", path,
+				"latency", latency, "ip", c.ClientIP())
+		} else {
+			slog.Info("petición web completada",
+				"status", status, "method", c.Request.Method, "path", path, "latency", latency)
+		}
+	}
 }
 
 func parseTrustedProxies(raw string) []string {

@@ -79,6 +79,8 @@ func (h *TenantsHandler) ShowTenantDetail(c *gin.Context) {
 		"IsAuthenticated": true,
 		"CSRFToken":       c.GetString("csrf_token"),
 		"Nonce":           c.GetString("csp_nonce"),
+		"Error":           flashError(c.Query("error")),
+		"Success":         flashSuccess(c.Query("success")),
 	})
 }
 

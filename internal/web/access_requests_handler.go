@@ -48,6 +48,8 @@ func (h *AccessRequestsHandler) ShowAccessRequests(c *gin.Context) {
 		"IsAuthenticated": true,
 		"CSRFToken":       c.GetString("csrf_token"),
 		"Nonce":           c.GetString("csp_nonce"),
+		"Error":           flashError(c.Query("error")),
+		"Success":         flashSuccess(c.Query("success")),
 	})
 }
 
@@ -64,19 +66,28 @@ func (h *AccessRequestsHandler) DoApproveAccessRequest(c *gin.Context) {
 		return
 	}
 
+	// Nunca se inventa un default que conceda sistemas: si el admin desmarcó todo a propósito (o por
+	// error), se rechaza con un error explícito. PUT /users/{id}/systems es declarativo, así que un
+	// default aquí concedería acceso que nadie pidió.
 	if len(systems) == 0 {
-		systems = []string{"wapp.bff", "wapp.edge"}
+		c.Redirect(http.StatusSeeOther, "/access-requests?error=missing_systems")
+		return
 	}
 
 	err := h.accessRequests.ApproveAccessRequest(c.Request.Context(), token, id, tenantID, role, systems)
 	if err != nil {
+		// M-11: nunca se refleja el texto crudo del upstream en la URL — un "&" o "#" en el mensaje
+		// rompería la query, y es una superficie de reflejo innecesaria. Se usa un código estable y el
+		// detalle real va solo al log.
+		errCode := "approve_failed"
 		var rej *adminclient.RejectionError
-		msg := "No se pudo aprobar la solicitud."
-		if errors.As(err, &rej) && rej.Message != "" {
-			msg = rej.Message
+		if errors.As(err, &rej) && rej.StatusCode == http.StatusBadGateway {
+			// 502: la plataforma pudo escribir localmente antes de fallar en la propagación. Distinto
+			// del resto de fallos, para que el operador no reintente a ciegas.
+			errCode = "approve_partial"
 		}
 		slog.Error("error aprobando solicitud de acceso", "id", id, "error", err)
-		c.Redirect(http.StatusSeeOther, "/access-requests?error="+msg)
+		c.Redirect(http.StatusSeeOther, "/access-requests?error="+errCode)
 		return
 	}
 
