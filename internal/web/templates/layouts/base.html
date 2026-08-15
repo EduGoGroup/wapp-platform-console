@@ -33,7 +33,7 @@
             <a href="/" class="btn btn--text{{ if eq .CurrentPath "/" }} btn--active{{ end }}">Empresas</a>
             <a href="/tenants/new" class="btn btn--text{{ if eq .CurrentPath "/tenants/new" }} btn--active{{ end }}">Nueva Empresa</a>
             <a href="/access-requests" class="btn btn--text{{ if eq .CurrentPath "/access-requests" }} btn--active{{ end }}">Bandeja de Acceso</a>
-            <form method="POST" action="/logout" style="margin: 0;">
+            <form method="POST" action="/logout" class="app-bar__logout-form">
                 <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
                 <button type="submit" class="btn btn--text">Cerrar sesión</button>
             </form>

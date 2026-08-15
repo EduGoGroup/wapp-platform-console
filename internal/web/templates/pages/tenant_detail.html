@@ -1,37 +1,37 @@
 {{ define "tenant_detail.html" }}
-<div style="margin-bottom: 1.5rem;">
-    <a href="/" class="btn btn--text" style="color: #64748B; padding-left: 0;">← Volver al listado</a>
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-top: 0.5rem;">
+<div class="mb-5">
+    <a href="/" class="btn btn--text link-back">← Volver al listado</a>
+    <div class="tenant-header">
         <div>
             <h1 class="wapp-title">{{ .Tenant.DisplayName }}</h1>
             <p class="wapp-subtitle"><code>{{ .Tenant.Slug }}</code> · ID: <code>{{ .Tenant.ID }}</code></p>
         </div>
         <div>
             {{ if .Tenant.RevokedAt }}
-            <span class="badge badge--danger" style="font-size: 0.875rem; padding: 0.5rem 1rem;">🔴 SERVICIO CORTADO</span>
+            <span class="badge badge--danger badge--lg">🔴 SERVICIO CORTADO</span>
             {{ else }}
-            <span class="badge badge--success" style="font-size: 0.875rem; padding: 0.5rem 1rem;">🟢 SERVICIO ACTIVO</span>
+            <span class="badge badge--success badge--lg">🟢 SERVICIO ACTIVO</span>
             {{ end }}
         </div>
     </div>
 </div>
 
 {{ if .EnrollmentCode }}
-<div class="wapp-snackbar wapp-snackbar--success" style="padding: 1.5rem; margin-bottom: 2rem;">
-    <h3 style="margin-bottom: 0.5rem;">🔑 Código de Enrolamiento Generado (Un solo uso)</h3>
-    <p style="margin-bottom: 0.75rem;">Copia este código y configúralo en el Edge del cliente. <strong>No se volverá a mostrar.</strong></p>
-    <div style="background: white; padding: 1rem; border-radius: 6px; font-family: monospace; font-size: 1.25rem; font-weight: bold; border: 1px dashed #166534; color: #166534; word-break: break-all;">
+<div class="wapp-snackbar wapp-snackbar--success wapp-snackbar--roomy">
+    <h3 class="mb-2">🔑 Código de Enrolamiento Generado (Un solo uso)</h3>
+    <p class="mb-3">Copia este código y configúralo en el Edge del cliente. <strong>No se volverá a mostrar.</strong></p>
+    <div class="enrollment-code-box">
         {{ .EnrollmentCode }}
     </div>
     {{ if .CodeExpiresAt }}
-    <p style="font-size: 0.75rem; margin-top: 0.5rem; opacity: 0.8;">Vence: {{ .CodeExpiresAt }}</p>
+    <p class="enrollment-code-expiry">Vence: {{ .CodeExpiresAt }}</p>
     {{ end }}
 </div>
 {{ end }}
 
-<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+<div class="tenant-detail-grid">
     <div class="wapp-card">
-        <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem;">Instalaciones (Edge Fleet)</h2>
+        <h2 class="panel-heading">Instalaciones (Edge Fleet)</h2>
         <div class="wapp-table-container">
             <table class="wapp-table">
                 <thead>
@@ -58,7 +58,7 @@
                     </tr>
                     {{ else }}
                     <tr>
-                        <td colspan="4" style="text-align: center; color: #64748B; padding: 1.5rem;">
+                        <td colspan="4" class="table-empty table-empty--compact">
                             No hay Edges registrados para esta empresa.
                         </td>
                     </tr>
@@ -67,10 +67,10 @@
             </table>
         </div>
 
-        <div style="margin-top: 1.5rem;">
+        <div class="mt-5">
             <form method="POST" action="/tenants/{{ .Tenant.ID }}/enrollment-codes">
                 <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
-                <button type="submit" class="wapp-btn wapp-btn--outlined" style="width: auto;">
+                <button type="submit" class="wapp-btn wapp-btn--outlined wapp-btn--auto">
                     + Emitir nuevo código de enrolamiento
                 </button>
             </form>
@@ -78,51 +78,50 @@
     </div>
 
     <div class="wapp-card">
-        <h2 style="font-size: 1.125rem; font-weight: 600; margin-bottom: 1rem;">Detalles del Plan</h2>
-        <div style="display: flex; flex-direction: column; gap: 0.75rem; font-size: 0.875rem;">
+        <h2 class="panel-heading">Detalles del Plan</h2>
+        <div class="tenant-plan-detail">
             <div>
-                <span style="color: #64748B;">Plan ID:</span>
+                <span class="text-muted">Plan ID:</span>
                 <strong>{{ if .Tenant.PlanID }}{{ .Tenant.PlanID }}{{ else }}standard{{ end }}</strong>
             </div>
             <div>
-                <span style="color: #64748B;">Creada:</span>
+                <span class="text-muted">Creada:</span>
                 <span>{{ .Tenant.CreatedAt }}</span>
             </div>
             <div>
-                <span style="color: #64748B;">Features habilitadas:</span>
-                <div style="display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.25rem;">
+                <span class="text-muted">Features habilitadas:</span>
+                <div class="tenant-features-list">
                     {{ range .Tenant.Features }}
                     <span class="badge badge--info">{{ . }}</span>
                     {{ else }}
-                    <span style="color: #94A3B8;">Ninguna feature específica</span>
+                    <span class="text-subtle">Ninguna feature específica</span>
                     {{ end }}
                 </div>
             </div>
         </div>
 
-        <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 1.5rem 0;">
+        <hr class="tenant-divider">
 
         {{ if .Tenant.RevokedAt }}
         <div>
-            <h3 style="font-size: 0.9375rem; font-weight: 600; color: #166534; margin-bottom: 0.5rem;">Restaurar Servicio</h3>
-            <p style="font-size: 0.8125rem; color: #64748B; margin-bottom: 0.75rem;">
+            <h3 class="panel-subheading panel-subheading--success">Restaurar Servicio</h3>
+            <p class="panel-description">
                 Devuelve el acceso operativo a todos los usuarios y Edges de la empresa.
             </p>
             <form method="POST" action="/tenants/{{ .Tenant.ID }}/restore">
                 <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
-                <button type="submit" class="wapp-btn wapp-btn--filled" style="background: #166534;">Restaurar Empresa</button>
+                <button type="submit" class="wapp-btn wapp-btn--filled wapp-btn--success">Restaurar Empresa</button>
             </form>
         </div>
         {{ else }}
         <div>
-            <h3 style="font-size: 0.9375rem; font-weight: 600; color: #991B1B; margin-bottom: 0.5rem;">Zona de Peligro: Corte</h3>
-            <p style="font-size: 0.8125rem; color: #64748B; margin-bottom: 0.75rem;">
+            <h3 class="panel-subheading panel-subheading--danger">Zona de Peligro: Corte</h3>
+            <p class="panel-description">
                 Revoca el lease y corta el acceso a la empresa. Para confirmar, escribe el slug exacto: <code>{{ .Tenant.Slug }}</code>
             </p>
             <form method="POST" action="/tenants/{{ .Tenant.ID }}/revoke" class="wapp-form-stack">
                 <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
-                <input type="hidden" name="expected_slug" value="{{ .Tenant.Slug }}">
-                
+
                 <div class="wapp-field">
                     <label class="wapp-field__label" for="slug_confirm">Confirma el slug:</label>
                     <input class="wapp-field__control" type="text" id="slug_confirm" name="slug_confirm" required placeholder="{{ .Tenant.Slug }}">

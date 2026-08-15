@@ -83,14 +83,26 @@ func (h *TenantsHandler) ShowTenantDetail(c *gin.Context) {
 }
 
 // DoRevokeTenant procesa el corte de una empresa previa confirmación del slug.
+//
+// La barrera humana (T4.5) exige que el operador escriba a mano el slug de la empresa objetivo. Por
+// eso el slug "esperado" NUNCA viaja en el propio formulario (un campo oculto es indistinguible de un
+// valor de ataque): se resuelve aquí, del lado servidor, contra el `id` de la URL. Un `slug_confirm`
+// que coincida con el slug de OTRA empresa no basta: solo vale el slug real del tenant `id`.
 func (h *TenantsHandler) DoRevokeTenant(c *gin.Context) {
 	id := c.Param("id")
-	slugConfirm := strings.TrimSpace(c.PostForm("slug_confirm"))
-	expectedSlug := strings.TrimSpace(c.PostForm("expected_slug"))
-	reason := strings.TrimSpace(c.PostForm("reason"))
 	token := c.GetString(ctxAccessToken)
 
-	if slugConfirm == "" || slugConfirm != expectedSlug {
+	tenant, err := h.tenants.GetTenant(c.Request.Context(), token, id)
+	if err != nil || tenant == nil {
+		slog.Error("no se pudo resolver la empresa objetivo del corte", "id", id, "error", err)
+		c.Redirect(http.StatusSeeOther, "/tenants/"+id+"?error=tenant_unreachable")
+		return
+	}
+
+	slugConfirm := strings.TrimSpace(c.PostForm("slug_confirm"))
+	reason := strings.TrimSpace(c.PostForm("reason"))
+
+	if slugConfirm == "" || slugConfirm != tenant.Slug {
 		c.Redirect(http.StatusSeeOther, "/tenants/"+id+"?error=slug_mismatch")
 		return
 	}

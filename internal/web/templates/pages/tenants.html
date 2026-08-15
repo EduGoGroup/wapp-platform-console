@@ -1,11 +1,11 @@
 {{ define "tenants.html" }}
-<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+<div class="flex-between mb-5">
     <div>
         <h1 class="wapp-title">Empresas Registradas</h1>
         <p class="wapp-subtitle">Gestión cross-tenant y control de servicio</p>
     </div>
     <div>
-        <a href="/tenants/new" class="btn btn--active" style="background: #4338CA; color: white; text-decoration: none; padding: 0.625rem 1.25rem;">+ Nueva Empresa</a>
+        <a href="/tenants/new" class="wapp-btn wapp-btn--filled wapp-btn--auto">+ Nueva Empresa</a>
     </div>
 </div>
 
@@ -23,7 +23,7 @@
                 <th>Slug</th>
                 <th>Plan</th>
                 <th>Estado</th>
-                <th style="text-align: right;">Acciones</th>
+                <th class="text-right">Acciones</th>
             </tr>
         </thead>
         <tbody>
@@ -39,13 +39,13 @@
                     <span class="badge badge--success">🟢 Activa</span>
                     {{ end }}
                 </td>
-                <td style="text-align: right;">
-                    <a href="/tenants/{{ .ID }}" class="btn btn--text" style="color: #4338CA; font-weight: 600;">Ver detalle →</a>
+                <td class="text-right">
+                    <a href="/tenants/{{ .ID }}" class="btn btn--text link-primary">Ver detalle →</a>
                 </td>
             </tr>
             {{ else }}
             <tr>
-                <td colspan="5" style="text-align: center; padding: 2rem; color: #64748B;">
+                <td colspan="5" class="table-empty">
                     No hay empresas registradas en la plataforma.
                 </td>
             </tr>

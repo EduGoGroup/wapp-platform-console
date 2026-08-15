@@ -11,15 +11,13 @@ import (
 )
 
 // CSRFMiddleware implementa protección CSRF mediante cookie double-submit.
+//
+// La cookie es HttpOnly SIEMPRE (el JS nunca la lee; el token lo incrusta el servidor al renderizar,
+// {{ .CSRFToken }}, y no hay un solo <script> en este repo que necesite leerla) y SameSite=Lax SIEMPRE,
+// con independencia de `cfg.CookieSameSite` (esa config es para la cookie de SESIÓN, no para esta). El
+// fail-safe CSRF no se degrada a None aunque la sesión se configure así: detrás de esta consola está el
+// kill-switch de toda la plataforma.
 func CSRFMiddleware(cfg *config.Config) gin.HandlerFunc {
-	sameSite := http.SameSiteLaxMode
-	switch cfg.CookieSameSite {
-	case "strict":
-		sameSite = http.SameSiteStrictMode
-	case "none":
-		sameSite = http.SameSiteNoneMode
-	}
-
 	return func(c *gin.Context) {
 		token, err := c.Cookie(csrfCookieName)
 		if err != nil || token == "" {
@@ -29,8 +27,8 @@ func CSRFMiddleware(cfg *config.Config) gin.HandlerFunc {
 				return
 			}
 			token = base64.RawURLEncoding.EncodeToString(buf)
-			c.SetSameSite(sameSite)
-			c.SetCookie(csrfCookieName, token, 86400, "/", "", cfg.CookieSecure, false)
+			c.SetSameSite(http.SameSiteLaxMode)
+			c.SetCookie(csrfCookieName, token, 86400, "/", "", cfg.CookieSecure, true)
 		}
 
 		c.Set(csrfFieldName, token)

@@ -22,7 +22,7 @@ func SecurityHeadersMiddleware(cfg *config.Config) gin.HandlerFunc {
 		nonce := base64.RawURLEncoding.EncodeToString(nonceBytes)
 		c.Set("csp_nonce", nonce)
 
-		csp := fmt.Sprintf("default-src 'self'; script-src 'self' 'nonce-%s'; style-src 'self' 'nonce-%s'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self';",
+		csp := fmt.Sprintf("default-src 'self'; script-src 'self' 'nonce-%s'; style-src 'self' 'nonce-%s'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'none';",
 			nonce, nonce)
 
 		c.Header("Content-Security-Policy", csp)

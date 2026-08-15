@@ -1,5 +1,5 @@
 {{ define "access_requests.html" }}
-<div style="margin-bottom: 1.5rem;">
+<div class="mb-5">
     <h1 class="wapp-title">Bandeja de Solicitudes de Acceso</h1>
     <p class="wapp-subtitle">Revisa, asigna empresa y autoriza a los usuarios que se han registrado.</p>
 </div>
@@ -23,7 +23,7 @@
             <tr>
                 <td>
                     <strong>{{ $req.Email }}</strong><br>
-                    <small style="color: #64748B;">User ID: <code>{{ $req.UserID }}</code></small>
+                    <small class="text-muted">User ID: <code>{{ $req.UserID }}</code></small>
                 </td>
                 <td>
                     <span class="badge badge--info">{{ $req.Origin }}</span>
@@ -31,42 +31,42 @@
                 <td>
                     <small>{{ $req.CreatedAt }}</small>
                 </td>
-                <td style="min-width: 320px;">
-                    <form method="POST" action="/access-requests/{{ $req.ID }}/approve" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <td class="col-approve">
+                    <form method="POST" action="/access-requests/{{ $req.ID }}/approve" class="form-stack-sm">
                         <input type="hidden" name="csrf_token" value="{{ $csrf }}">
 
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
-                            <select name="tenant_id" required class="wapp-field__control" style="padding: 0.375rem; font-size: 0.8125rem;">
+                        <div class="grid-2">
+                            <select name="tenant_id" required class="wapp-field__control field-control--compact">
                                 <option value="" disabled selected>Selecciona empresa...</option>
                                 {{ range $tenants }}
                                 <option value="{{ .ID }}">{{ .DisplayName }} ({{ .Slug }})</option>
                                 {{ end }}
                             </select>
 
-                            <select name="role" required class="wapp-field__control" style="padding: 0.375rem; font-size: 0.8125rem;">
+                            <select name="role" required class="wapp-field__control field-control--compact">
                                 <option value="operator" selected>Operador</option>
                                 <option value="admin">Administrador</option>
                                 <option value="viewer">Lector</option>
                             </select>
                         </div>
 
-                        <div style="display: flex; gap: 0.75rem; font-size: 0.75rem; color: #475569; align-items: center;">
+                        <div class="access-systems-row">
                             <span>Apps:</span>
                             <label><input type="checkbox" name="systems" value="wapp.bff" {{ if eq $req.Origin "bff" }}checked{{ end }}> BFF</label>
                             <label><input type="checkbox" name="systems" value="wapp.edge" {{ if eq $req.Origin "edge" }}checked{{ end }}> Edge</label>
                             <label><input type="checkbox" name="systems" value="wapp.platform"> Plataforma</label>
                         </div>
 
-                        <button type="submit" class="wapp-btn wapp-btn--filled" style="padding: 0.375rem 0.75rem; font-size: 0.8125rem;">
+                        <button type="submit" class="wapp-btn wapp-btn--filled wapp-btn--compact">
                             ✓ Aprobar Acceso
                         </button>
                     </form>
                 </td>
-                <td style="min-width: 180px;">
-                    <form method="POST" action="/access-requests/{{ $req.ID }}/reject" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                <td class="col-reject">
+                    <form method="POST" action="/access-requests/{{ $req.ID }}/reject" class="form-stack-sm">
                         <input type="hidden" name="csrf_token" value="{{ $csrf }}">
-                        <input type="text" name="reason" placeholder="Motivo del rechazo" required class="wapp-field__control" style="padding: 0.375rem; font-size: 0.8125rem;">
-                        <button type="submit" class="wapp-btn wapp-btn--danger" style="padding: 0.375rem 0.75rem; font-size: 0.8125rem;">
+                        <input type="text" name="reason" placeholder="Motivo del rechazo" required class="wapp-field__control field-control--compact">
+                        <button type="submit" class="wapp-btn wapp-btn--danger wapp-btn--compact">
                             ✕ Rechazar
                         </button>
                     </form>
@@ -74,9 +74,9 @@
             </tr>
             {{ else }}
             <tr>
-                <td colspan="5" style="text-align: center; padding: 3rem; color: #64748B;">
-                    <div style="font-size: 1.125rem; font-weight: 500; margin-bottom: 0.25rem;">No hay solicitudes pendientes</div>
-                    <div style="font-size: 0.875rem;">Cuando los usuarios soliciten acceso desde el BFF o Edge aparecerán aquí para ser aprobados.</div>
+                <td colspan="5" class="table-empty table-empty--roomy">
+                    <div class="empty-state__title">No hay solicitudes pendientes</div>
+                    <div class="empty-state__hint">Cuando los usuarios soliciten acceso desde el BFF o Edge aparecerán aquí para ser aprobados.</div>
                 </td>
             </tr>
             {{ end }}

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -13,6 +14,7 @@ func TestAccessRequests_ListApproveReject(t *testing.T) {
 	t.Parallel()
 
 	var (
+		mu            sync.Mutex
 		approveCalled bool
 		approvedBody  map[string]any
 		rejectCalled  bool
@@ -40,11 +42,15 @@ func TestAccessRequests_ListApproveReject(t *testing.T) {
 				},
 			})
 		case r.URL.Path == "/admin/access-requests/req-1/approve" && r.Method == http.MethodPost:
+			mu.Lock()
 			approveCalled = true
 			_ = json.NewDecoder(r.Body).Decode(&approvedBody)
+			mu.Unlock()
 			w.WriteHeader(http.StatusNoContent)
 		case r.URL.Path == "/admin/access-requests/req-1/reject" && r.Method == http.MethodPost:
+			mu.Lock()
 			rejectCalled = true
+			mu.Unlock()
 			w.WriteHeader(http.StatusNoContent)
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -80,12 +86,17 @@ func TestAccessRequests_ListApproveReject(t *testing.T) {
 	if recApprove.Code != http.StatusSeeOther {
 		t.Fatalf("POST approve status = %d, want 303", recApprove.Code)
 	}
+	mu.Lock()
 	if !approveCalled {
 		t.Fatal("endpoint de aprobación no fue invocado")
 	}
 	if approvedBody["tenant_id"] != "t-1" || approvedBody["role"] != "operator" {
 		t.Fatalf("cuerpo de aprobación inválido: %v", approvedBody)
 	}
+	if !equalStringSlices(anySliceToStrings(approvedBody["systems"]), []string{"wapp.bff", "wapp.edge"}) {
+		t.Fatalf("systems enviado = %v, want [wapp.bff wapp.edge]", approvedBody["systems"])
+	}
+	mu.Unlock()
 
 	// 3. Rechazar
 	formReject := url.Values{
@@ -95,7 +106,78 @@ func TestAccessRequests_ListApproveReject(t *testing.T) {
 	if recReject.Code != http.StatusSeeOther {
 		t.Fatalf("POST reject status = %d, want 303", recReject.Code)
 	}
+	mu.Lock()
+	defer mu.Unlock()
 	if !rejectCalled {
 		t.Fatal("endpoint de rechazo no fue invocado")
 	}
+}
+
+// TestAccessRequests_ApproveDefaultsSystemsWhenNoneSelected cubre el default de
+// access_requests_handler.go:67-69 (`if len(systems)==0`): si el operador no marca ninguna casilla de
+// "Apps", la aprobación debe caer a ["wapp.bff", "wapp.edge"], no a una lista vacía que dejaría al
+// usuario sin acceso a ningún sistema tras ser "aprobado".
+func TestAccessRequests_ApproveDefaultsSystemsWhenNoneSelected(t *testing.T) {
+	t.Parallel()
+
+	var (
+		mu           sync.Mutex
+		approvedBody map[string]any
+	)
+
+	adminSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/admin/access-requests/req-1/approve" && r.Method == http.MethodPost {
+			mu.Lock()
+			_ = json.NewDecoder(r.Body).Decode(&approvedBody)
+			mu.Unlock()
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer adminSrv.Close()
+
+	cfg := testConfig(adminSrv.URL, "http://127.0.0.1:8103", "http://127.0.0.1:8200")
+	router := NewRouter(cfg)
+	sess := adminSessionCookie(t)
+
+	// Sin campo "systems" en el POST (ninguna casilla marcada).
+	form := url.Values{"tenant_id": {"t-1"}, "role": {"operator"}}
+	rec := postFormWithCSRF(router, "/access-requests/req-1/approve", form, sess)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("POST approve status = %d, want 303", rec.Code)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	got := anySliceToStrings(approvedBody["systems"])
+	if !equalStringSlices(got, []string{"wapp.bff", "wapp.edge"}) {
+		t.Fatalf("systems por defecto = %v, want [wapp.bff wapp.edge]", got)
+	}
+}
+
+func anySliceToStrings(v any) []string {
+	raw, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for _, e := range raw {
+		if s, ok := e.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func equalStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

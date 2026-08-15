@@ -78,8 +78,10 @@ func RateLimitMiddleware(cfg *config.Config) (gin.HandlerFunc, *keyedRateLimiter
 	limiter := newKeyedRateLimiter(cfg.RateLimitRPS, int(cfg.RateLimitBurst))
 	return func(c *gin.Context) {
 		key := c.ClientIP()
-		if uid, exists := c.Get(ctxUserID); exists && uid.(string) != "" {
-			key = uid.(string)
+		if uid, exists := c.Get(ctxUserID); exists {
+			if s, ok := uid.(string); ok && s != "" {
+				key = s
+			}
 		}
 		if !limiter.allow(key) {
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{

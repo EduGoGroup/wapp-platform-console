@@ -1,32 +1,32 @@
 {{ define "tenant_created.html" }}
-<div style="max-width: 600px; margin: 0 auto; text-align: center;">
-    <div class="wapp-card" style="padding: 2.5rem;">
-        <div class="wapp-brand-badge" style="background-color: #DCFCE7; color: #166534; width: 64px; height: 64px;">
+<div class="result-card">
+    <div class="wapp-card wapp-card--roomy">
+        <div class="wapp-brand-badge wapp-brand-badge--success">
             <svg viewBox="0 0 24 24" width="36" height="36" fill="currentColor">
                 <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
             </svg>
         </div>
-        <h1 class="wapp-title" style="margin-top: 1rem;">¡Empresa Creada con Éxito!</h1>
-        <p class="wapp-subtitle" style="margin-top: 0.5rem;">
+        <h1 class="wapp-title mt-4">¡Empresa Creada con Éxito!</h1>
+        <p class="wapp-subtitle mt-2">
             La empresa <strong>{{ .DisplayName }}</strong> (<code>{{ .Slug }}</code>) ha sido registrada en wApp.
         </p>
 
-        <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 1.5rem; margin: 2rem 0; text-align: left; font-size: 0.875rem;">
-            <h4 style="color: #334155; margin-bottom: 0.75rem;">Siguientes Pasos:</h4>
-            <ol style="padding-left: 1.25rem; color: #475569; display: flex; flex-direction: column; gap: 0.5rem;">
+        <div class="next-steps-box">
+            <h4 class="next-steps-box__title">Siguientes Pasos:</h4>
+            <ol class="next-steps-box__list">
                 <li>Emite un <strong>código de enrolamiento</strong> para activar el Edge físico en su local.</li>
                 <li>Invita al personal de la empresa a registrarse en el BFF / Edge (pantalla <em>«Crear cuenta»</em>).</li>
                 <li>Aprueba sus solicitudes en la <strong>Bandeja de Acceso</strong> asignándoles esta empresa.</li>
             </ol>
         </div>
 
-        <div class="wapp-actions" style="display: flex; flex-direction: column; gap: 0.75rem;">
+        <div class="wapp-actions wapp-actions--stack">
             <form method="POST" action="/tenants/{{ .TenantID }}/enrollment-codes">
                 <input type="hidden" name="csrf_token" value="{{ .CSRFToken }}">
                 <button type="submit" class="wapp-btn wapp-btn--filled">Emitir Código de Enrolamiento para Edge</button>
             </form>
-            <a href="/tenants/{{ .TenantID }}" class="wapp-btn wapp-btn--outlined" style="text-decoration: none;">Ver Detalle de la Empresa</a>
-            <a href="/" class="btn btn--text" style="color: #64748B;">Volver al listado</a>
+            <a href="/tenants/{{ .TenantID }}" class="wapp-btn wapp-btn--outlined">Ver Detalle de la Empresa</a>
+            <a href="/" class="btn btn--text text-muted">Volver al listado</a>
         </div>
     </div>
 </div>
