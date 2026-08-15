@@ -19,7 +19,7 @@ func TestAuth_LoginSuccess(t *testing.T) {
 		if r.URL.Path == "/api/v1/auth/login" && r.Method == http.MethodPost {
 			var body map[string]string
 			_ = json.NewDecoder(r.Body).Decode(&body)
-			if body["email"] == "admin@wapp.local" && body["password"] == "1234567890AB" && body["system"] == "wapp.platform" {
+			if body["email"] == "admin@wapp.local" && body["password"] == "test-only-password" && body["system"] == "wapp.platform" {
 				w.Header().Set("Content-Type", "application/json")
 				_ = json.NewEncoder(w).Encode(map[string]string{
 					"identity_token": "id-token-123",
@@ -57,7 +57,7 @@ func TestAuth_LoginSuccess(t *testing.T) {
 
 	form := url.Values{
 		"email":    {"admin@wapp.local"},
-		"password": {"1234567890AB"},
+		"password": {"test-only-password"},
 	}
 	rec := postFormWithCSRF(router, "/login", form, nil)
 
@@ -123,7 +123,7 @@ func TestAuth_LoginSetsSecureAndSameSiteCookie(t *testing.T) {
 	cfg.CookieSameSite = "strict"
 	router := NewRouter(cfg)
 
-	form := url.Values{"email": {"admin@wapp.local"}, "password": {"1234567890AB"}}
+	form := url.Values{"email": {"admin@wapp.local"}, "password": {"test-only-password"}}
 	rec := postFormWithCSRF(router, "/login", form, nil)
 
 	var sessCookie *http.Cookie

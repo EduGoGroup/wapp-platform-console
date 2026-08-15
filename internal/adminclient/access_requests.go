@@ -87,9 +87,44 @@ func (c *AccessRequestsClient) ApproveAccessRequest(ctx context.Context, accessT
 	defer drainClose(resp.Body)
 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		return reasonedStatusError("approve access request", resp, http.StatusNotFound, http.StatusConflict, http.StatusForbidden, http.StatusBadRequest, http.StatusBadGateway)
+		return approveAccessRequestError("approve access request", resp)
 	}
 	return nil
+}
+
+// approvePartialBody espeja platformadmin.ApprovePartialResult (cloud/wapp-cloud-platform): NO se
+// importa ese paquete — repos independientes (CLAUDE.md raíz §2) — solo se replica su forma JSON para
+// poder RECONOCERLA.
+type approvePartialBody struct {
+	Local    string `json:"local"`
+	Identity string `json:"identity"`
+	Reason   string `json:"reason"`
+}
+
+// approveAccessRequestError interpreta el cuerpo de un status no-OK de ApproveAccessRequest. A
+// diferencia de reasonedStatusError (que asume siempre el envelope {"error":"..."}), aquí hace falta
+// mirar la FORMA del cuerpo antes de decidir: un 409 puede ser "la solicitud ya fue resuelta" (texto
+// plano, ErrConflict) o una aprobación a MEDIAS ({"local","identity","reason"},
+// ErrSystemsUnionUnavailable) — el status por sí solo NO los distingue (Trabajo 2, code review 056 ·
+// T11). Un 502 (ErrSystemsSyncFailed) trae siempre la misma forma parcial, así que entra por el mismo
+// camino; si alguna vez llegara sin ese cuerpo (defensivo), cae al RejectionError genérico igual que
+// antes de este cambio.
+func approveAccessRequestError(op string, resp *http.Response) error {
+	switch resp.StatusCode {
+	case http.StatusConflict, http.StatusBadGateway:
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxRejectionBody))
+		var partial approvePartialBody
+		if err := json.Unmarshal(raw, &partial); err == nil && partial.Local != "" && partial.Identity != "" {
+			return &PartialApprovalError{Op: op, StatusCode: resp.StatusCode, Identity: partial.Identity, Reason: partial.Reason}
+		}
+		var rej struct {
+			Error string `json:"error"`
+		}
+		_ = json.Unmarshal(raw, &rej)
+		return &RejectionError{Op: op, StatusCode: resp.StatusCode, Message: rej.Error}
+	default:
+		return reasonedStatusError(op, resp, http.StatusNotFound, http.StatusForbidden, http.StatusBadRequest)
+	}
 }
 
 // RejectAccessRequest rechaza la solicitud guardando el motivo.

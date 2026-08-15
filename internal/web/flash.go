@@ -18,6 +18,8 @@ func flashError(code string) string {
 		return "No se pudo aprobar la solicitud. Intenta de nuevo."
 	case "approve_partial":
 		return "La aprobación pudo quedar aplicada solo parcialmente en el servidor. Verifica el estado del usuario antes de repetir la acción."
+	case "approve_partial_skipped":
+		return "La aprobación SÍ se aplicó: la empresa y el rol quedaron guardados. Los permisos de aplicaciones (BFF/Edge) NO se tocaron a propósito, para no revocarle sin querer un acceso que el usuario ya tenía. Reintentar no lo va a arreglar: revisa el estado de este usuario antes de continuar."
 	case "missing_reason":
 		return "Indica un motivo para rechazar la solicitud."
 	case "reject_failed":

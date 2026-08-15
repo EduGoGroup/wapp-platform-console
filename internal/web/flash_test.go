@@ -10,8 +10,8 @@ func TestFlashError_KnownCodesMapToFixedMessages(t *testing.T) {
 
 	codes := []string{
 		"missing_fields", "missing_systems", "approve_failed", "approve_partial",
-		"missing_reason", "reject_failed", "tenant_unreachable", "slug_mismatch",
-		"revoke_failed", "restore_failed", "code_failed",
+		"approve_partial_skipped", "missing_reason", "reject_failed", "tenant_unreachable",
+		"slug_mismatch", "revoke_failed", "restore_failed", "code_failed",
 	}
 	for _, code := range codes {
 		msg := flashError(code)

@@ -196,6 +196,86 @@ func TestAccessRequests_ApproveBadGatewayShowsPartialFeedback(t *testing.T) {
 	}
 }
 
+// TestAccessRequests_ApproveConflictSkippedShowsHonestFeedback cubre el Trabajo 2 (code review 056 ·
+// T11): un 409 de :8100 con cuerpo {"local":"ok","identity":"skipped","reason":...}
+// (ErrSystemsUnionUnavailable) significa que lo local SÍ quedó escrito y los systems de identity NO se
+// tocaron A PROPÓSITO — no es transitorio, reintentar no lo arregla. Antes de este fix caía en
+// "approve_failed" ("Intenta de nuevo"), el consejo CONTRARIO al correcto.
+func TestAccessRequests_ApproveConflictSkippedShowsHonestFeedback(t *testing.T) {
+	t.Parallel()
+
+	adminSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/admin/access-requests/req-1/approve" && r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"local":    "ok",
+				"identity": "skipped",
+				"reason":   "el usuario ya tiene una aprobación previa y no se puede leer su conjunto actual de systems en identity",
+			})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer adminSrv.Close()
+
+	cfg := testConfig(adminSrv.URL, "http://127.0.0.1:8103", "http://127.0.0.1:8200")
+	router := NewRouter(cfg)
+	sess := adminSessionCookie(t)
+
+	form := url.Values{"tenant_id": {"t-1"}, "role": {"operator"}, "systems": {"wapp.bff"}}
+	rec := postFormWithCSRF(router, "/access-requests/req-1/approve", form, sess)
+	loc := rec.Header().Get("Location")
+	if !strings.Contains(loc, "error=approve_partial_skipped") {
+		t.Fatalf("Location = %q, want error=approve_partial_skipped", loc)
+	}
+
+	getReq := httptest.NewRequest(http.MethodGet, loc, nil)
+	getReq.AddCookie(sess)
+	recGet := httptest.NewRecorder()
+	router.ServeHTTP(recGet, getReq)
+	if !strings.Contains(recGet.Body.String(), flashError("approve_partial_skipped")) {
+		t.Fatal("esperado el mensaje de aprobación parcial (skipped) visible tras el redirect")
+	}
+}
+
+// TestAccessRequests_ApproveAlreadyResolvedConflictStaysGeneric es la trampa del Trabajo 2: existe OTRO
+// 409 legítimo ("la solicitud ya fue resuelta", ErrConflict) que NO trae el cuerpo
+// {"local","identity","reason"} — es texto plano (http.Error). La distinción por FORMA del cuerpo no
+// debe confundirlo con el caso "skipped": debe seguir cayendo en el fallback genérico, nunca en
+// approve_partial_skipped.
+func TestAccessRequests_ApproveAlreadyResolvedConflictStaysGeneric(t *testing.T) {
+	t.Parallel()
+
+	adminSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/admin/access-requests/req-1/approve" && r.Method == http.MethodPost {
+			// Mismo shape que platformadmin.ApproveAccessRequestHandler para ErrConflict: http.Error,
+			// texto plano, SIN las claves local/identity/reason.
+			http.Error(w, "la solicitud ya fue resuelta o la persona ya pertenece a otra empresa", http.StatusConflict)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer adminSrv.Close()
+
+	cfg := testConfig(adminSrv.URL, "http://127.0.0.1:8103", "http://127.0.0.1:8200")
+	router := NewRouter(cfg)
+	sess := adminSessionCookie(t)
+
+	form := url.Values{"tenant_id": {"t-1"}, "role": {"operator"}, "systems": {"wapp.bff"}}
+	rec := postFormWithCSRF(router, "/access-requests/req-1/approve", form, sess)
+	loc := rec.Header().Get("Location")
+	if strings.Contains(loc, "approve_partial") {
+		t.Fatalf("Location = %q, un 409 sin el cuerpo parcial NO debe caer en approve_partial(_skipped)", loc)
+	}
+	if !strings.Contains(loc, "error=approve_failed") {
+		t.Fatalf("Location = %q, want error=approve_failed (fallback genérico)", loc)
+	}
+	if strings.Contains(loc, "resuelta") || strings.Contains(loc, "pertenece") {
+		t.Fatalf("el mensaje crudo del upstream NUNCA debe reflejarse en la URL: %q", loc)
+	}
+}
+
 // TestAccessRequests_PrecargaFromCurrentSystems cubre C-05: las casillas se precargan con lo que el
 // usuario YA tiene (Systems), no con el origen de la solicitud (antes: Origin=="bff" marcaba BFF). Un
 // usuario con wapp.edge que pide acceso desde el BFF debe seguir mostrando Edge marcado, para que

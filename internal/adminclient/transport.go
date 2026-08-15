@@ -70,6 +70,29 @@ func (e *RejectionError) Error() string {
 	return fmt.Sprintf("adminclient: %s rechazada (%d)", e.Op, e.StatusCode)
 }
 
+// PartialApprovalError señala que una aprobación quedó a MEDIAS en el servidor: la mitad LOCAL
+// (tenant + rol) se escribió, pero los systems de identity NO se sincronizaron — por seguridad
+// (Identity == "skipped": la cuenta ya tenía una aprobación previa y no hay lectura segura para unir
+// sin arriesgar reemplazar accesos existentes) o por un fallo real de sincronización (Identity ==
+// "failed"). NINGUNO de los dos casos es transitorio: reintentar la misma llamada no cambia el
+// resultado — hace falta reconciliar el estado del usuario a mano (Trabajo 2, code review 056 · T11).
+//
+// Se distingue de RejectionError porque el cuerpo NO trae la clave "error" que ese tipo espera: trae
+// {"local","identity","reason"}, espejo de platformadmin.ApprovePartialResult (cloud/wapp-cloud-platform,
+// NO importado — repos independientes, ver CLAUDE.md raíz §2). Ambos códigos HTTP que puede llevar este
+// cuerpo (409 y 502) comparten la misma forma; el status por sí solo no basta para distinguir un 409
+// parcial de OTRO 409 legítimo ("la solicitud ya fue resuelta", texto plano, sin estas claves).
+type PartialApprovalError struct {
+	Op         string
+	StatusCode int
+	Identity   string // "skipped" | "failed"
+	Reason     string
+}
+
+func (e *PartialApprovalError) Error() string {
+	return fmt.Sprintf("adminclient: %s parcial (%d, identity=%s): %s", e.Op, e.StatusCode, e.Identity, e.Reason)
+}
+
 func statusError(op string, status int) error {
 	if status == http.StatusUnauthorized {
 		return fmt.Errorf("%s: %w", op, ErrUnauthorized)

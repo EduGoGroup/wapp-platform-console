@@ -80,11 +80,25 @@ func (h *AccessRequestsHandler) DoApproveAccessRequest(c *gin.Context) {
 		// rompería la query, y es una superficie de reflejo innecesaria. Se usa un código estable y el
 		// detalle real va solo al log.
 		errCode := "approve_failed"
-		var rej *adminclient.RejectionError
-		if errors.As(err, &rej) && rej.StatusCode == http.StatusBadGateway {
-			// 502: la plataforma pudo escribir localmente antes de fallar en la propagación. Distinto
-			// del resto de fallos, para que el operador no reintente a ciegas.
+		var partial *adminclient.PartialApprovalError
+		switch {
+		case errors.As(err, &partial) && partial.Identity == "skipped":
+			// 409 a MEDIAS (Trabajo 2, code review 056 · T11): lo local (tenant + rol) quedó escrito, los
+			// systems de identity NO se tocaron A PROPÓSITO (el usuario ya tenía una aprobación previa y
+			// no hay lectura segura para unir sin arriesgar reemplazarle acceso). No es transitorio:
+			// reintentar no lo arregla, hace falta reconciliar el estado del usuario a mano.
+			errCode = "approve_partial_skipped"
+		case errors.As(err, &partial):
+			// "failed" (502, ErrSystemsSyncFailed): la propagación a identity falló de verdad. Mismo
+			// mensaje que ya existía para este caso.
 			errCode = "approve_partial"
+		default:
+			var rej *adminclient.RejectionError
+			if errors.As(err, &rej) && rej.StatusCode == http.StatusBadGateway {
+				// Defensivo: un 502 que llegara sin el cuerpo parcial esperado se sigue tratando como
+				// parcial (comportamiento previo a este cambio).
+				errCode = "approve_partial"
+			}
 		}
 		slog.Error("error aprobando solicitud de acceso", "id", id, "error", err)
 		c.Redirect(http.StatusSeeOther, "/access-requests?error="+errCode)
