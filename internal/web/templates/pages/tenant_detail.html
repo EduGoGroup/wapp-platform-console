@@ -93,7 +93,7 @@
         <div class="tenant-plan-detail">
             <div>
                 <span class="text-muted">Plan ID:</span>
-                <strong>{{ if .Tenant.PlanID }}{{ .Tenant.PlanID }}{{ else }}standard{{ end }}</strong>
+                <strong data-field="plan">{{ template "plan_label" .Tenant.PlanID }}</strong>
             </div>
             <div>
                 <span class="text-muted">Creada:</span>

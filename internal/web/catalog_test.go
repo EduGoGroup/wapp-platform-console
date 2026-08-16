@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strings"
 	"testing"
 )
 
@@ -200,5 +201,122 @@ func TestAccessRequests_RoleOptionsExistenEnElCatalogo(t *testing.T) {
 
 	if sel := selectedValue(t, rec.Body.String(), "role"); sel != "" && !rolesOfrecibles[sel] {
 		t.Errorf("el rol preseleccionado %q no es concedible: el camino por defecto está roto", sel)
+	}
+}
+
+// palabrasDeRotulo son las palabras que la etiqueta del plan puede llevar ADEMÁS del identificador:
+// la marca de que el plan es implícito. Deliberadamente cortísima — si alguien necesita ampliarla,
+// que sea una decisión consciente y no un plan inventado colándose como prosa.
+var palabrasDeRotulo = map[string]bool{
+	"por":     true,
+	"defecto": true,
+}
+
+// planLabels extrae el texto de cada elemento marcado con data-field="plan" en el HTML renderizado.
+// Ese marcador acota la búsqueda al rótulo del plan y solo a él: la página de detalle lista justo
+// debajo las features (`cart_basic`, `intakes_export`…), que no son identificadores de plan y
+// dispararían falsos positivos si se barriera el documento entero.
+func planLabels(t *testing.T, html string) []string {
+	t.Helper()
+
+	// El marcador va en el elemento MÁS INTERNO, el que solo contiene texto: por eso basta con
+	// leer hasta el siguiente '<'.
+	re := regexp.MustCompile(`<[a-zA-Z]+[^>]*\bdata-field="plan"[^>]*>([^<]*)<`)
+	var labels []string
+	for _, m := range re.FindAllStringSubmatch(html, -1) {
+		labels = append(labels, strings.TrimSpace(m[1]))
+	}
+	return labels
+}
+
+// TestTenantViews_PlanMostradoExisteEnElCatalogo cierra el hueco que dejaron los dos tests de arriba:
+// solo miraban los `value` de los `<select>`, así que el fantasma `standard` sobrevivió en los
+// FALLBACKS de presentación de `tenants.html` y `tenant_detail.html`. Una empresa con `plan_id` NULL
+// se anunciaba como `standard` — un plan que no existe en `public.plans` — mientras la misma ficha
+// listaba debajo las features de `basic`.
+//
+// La verdad la fija el cloud: `COALESCE(plan_id, 'basic')` en las dos consultas de entitlements
+// (wapp-cloud-platform, internal/entitlements/postgres.go:151 y :235). El rótulo tiene que nombrar
+// un plan del catálogo real, y el test falla si nombra cualquier otra cosa.
+func TestTenantViews_PlanMostradoExisteEnElCatalogo(t *testing.T) {
+	t.Parallel()
+
+	// Empresa SIN plan asignado: `plan_id` a null es exactamente el caso que se vio mal en UAT.
+	adminSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == "/admin/tenants" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{
+				{"id": "t-sin-plan", "slug": "empresa-sin-plan", "display_name": "Empresa Sin Plan",
+					"plan_id": nil, "revoked_at": nil},
+			}})
+		case r.URL.Path == "/admin/tenants/t-sin-plan" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"id": "t-sin-plan", "slug": "empresa-sin-plan", "display_name": "Empresa Sin Plan",
+				"plan_id": nil, "revoked_at": nil, "created_at": "2026-08-14T00:00:00Z",
+				"installations_count": 0,
+				// Las features que el cloud devuelve para un plan NULL son, precisamente, las de
+				// `basic`: si el rótulo dijera otro plan, la ficha se contradiría a sí misma.
+				"features": []string{"cart_basic", "intakes_export", "menu", "survey"},
+			})
+		case r.URL.Path == "/admin/tenants/t-sin-plan/installations" && r.Method == http.MethodGet:
+			_ = json.NewEncoder(w).Encode(map[string]any{"items": []map[string]any{}})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer adminSrv.Close()
+
+	router := NewRouter(testConfig(adminSrv.URL, "http://127.0.0.1:8103", "http://127.0.0.1:8200"))
+	sess := adminSessionCookie(t)
+
+	casos := []struct {
+		nombre string
+		ruta   string
+	}{
+		{"listado", "/"},
+		{"detalle", "/tenants/t-sin-plan"},
+	}
+
+	tokenRe := regexp.MustCompile(`[a-z][a-z0-9_]*`)
+
+	for _, caso := range casos {
+		t.Run(caso.nombre, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, caso.ruta, nil)
+			req.AddCookie(sess)
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+
+			if rec.Code != http.StatusOK {
+				t.Fatalf("GET %s = %d, esperado 200", caso.ruta, rec.Code)
+			}
+
+			labels := planLabels(t, rec.Body.String())
+			if len(labels) == 0 {
+				t.Fatalf("no se encontró ningún rótulo de plan (data-field=\"plan\") en %s: "+
+					"si se quitó el marcador, este test dejó de vigilar la página", caso.ruta)
+			}
+
+			for _, label := range labels {
+				var nombraUnPlan bool
+				for _, token := range tokenRe.FindAllString(strings.ToLower(label), -1) {
+					switch {
+					case planesSembrados[token]:
+						nombraUnPlan = true
+					case palabrasDeRotulo[token]:
+						// marca de plan implícito, no es un identificador
+					default:
+						t.Errorf("%s muestra el plan %q, y %q NO existe en public.plans (0032/0039): "+
+							"la consola estaría anunciando un plan que la plataforma no aplica",
+							caso.ruta, label, token)
+					}
+				}
+				if !nombraUnPlan {
+					t.Errorf("%s muestra %q, que no nombra ningún plan del catálogo: el operador no "+
+						"puede saber qué aplica la plataforma (plan_id NULL ⇒ 'basic' por el "+
+						"COALESCE de entitlements/postgres.go:151)", caso.ruta, label)
+				}
+			}
+		})
 	}
 }

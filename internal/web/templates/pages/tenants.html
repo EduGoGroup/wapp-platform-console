@@ -31,7 +31,7 @@
             <tr>
                 <td><strong>{{ .DisplayName }}</strong></td>
                 <td><code>{{ .Slug }}</code></td>
-                <td><span class="badge badge--info">{{ if .PlanID }}{{ .PlanID }}{{ else }}standard{{ end }}</span></td>
+                <td><span class="badge badge--info" data-field="plan">{{ template "plan_label" .PlanID }}</span></td>
                 <td>
                     {{ if .RevokedAt }}
                     <span class="badge badge--danger">🔴 Cortada</span>

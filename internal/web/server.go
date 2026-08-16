@@ -86,6 +86,7 @@ func NewRouterWithLimiter(cfg *config.Config) (*gin.Engine, func()) {
 	tmpl, err := root.ParseFS(templatesFS,
 		"templates/layouts/*.html",
 		"templates/pages/*.html",
+		"templates/partials/*.html",
 	)
 	if err != nil {
 		slog.Error("no se pudieron compilar las plantillas HTML", "error", err)

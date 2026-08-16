@@ -1,0 +1,21 @@
+{{/*
+plan_label rotula el plan de una empresa a partir de su `plan_id`. Recibe el identificador como
+argumento (una cadena, vacía cuando la columna `tenants.plan_id` es NULL).
+
+Por qué existe este parcial en vez de repetir el `{{ if }}` en cada plantilla: la versión anterior
+estaba duplicada en `tenants.html` y en `tenant_detail.html`, y ambas copias cayeron en el mismo
+fantasma — `standard`, un plan que NO existe en `public.plans` (el catálogo real es basic, pro,
+commerce, advisor_ai, advisor_ai_pro). Con una sola definición, el rótulo del plan solo se puede
+cambiar en un sitio.
+
+Qué se muestra cuando no hay plan asignado: el cloud resuelve un `plan_id` NULL como `basic`, con un
+COALESCE(plan_id, 'basic') en las DOS consultas de entitlements (wapp-cloud-platform,
+internal/entitlements/postgres.go:151 en listEffective y :235 en Has). Así que `basic` es el plan
+que la plataforma APLICA de verdad, y es lo que debe leer el operador: era incoherente anunciar un
+nombre y listar debajo las features de otro plan.
+
+El "(por defecto)" no es adorno: la fila tiene el plan a NULL, nadie se lo asignó. Un `basic` a secas
+haría creer que hay una decisión tomada, y son estados distintos — si mañana cambia el plan por
+defecto del cloud, estas empresas se moverán solas y las que tengan `basic` escrito no.
+*/}}
+{{ define "plan_label" }}{{ if . }}{{ . }}{{ else }}basic (por defecto){{ end }}{{ end }}
