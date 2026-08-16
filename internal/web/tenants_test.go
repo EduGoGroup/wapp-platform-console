@@ -24,7 +24,7 @@ func TestTenants_ListAndDetail(t *testing.T) {
 						"id":           "t-1",
 						"slug":         "empresa-alfa",
 						"display_name": "Empresa Alfa",
-						"plan_id":      "standard",
+						"plan_id":      "basic",
 						"revoked_at":   nil,
 					},
 				},
@@ -36,7 +36,7 @@ func TestTenants_ListAndDetail(t *testing.T) {
 				"id":                  "t-1",
 				"slug":                "empresa-alfa",
 				"display_name":        "Empresa Alfa",
-				"plan_id":             "standard",
+				"plan_id":             "basic",
 				"revoked_at":          nil,
 				"created_at":          "2026-08-14T00:00:00Z",
 				"installations_count": 1,
@@ -278,7 +278,7 @@ func TestTenants_CreateAndIssueEnrollmentCode(t *testing.T) {
 				"id":           "t-new",
 				"slug":         "nueva-empresa",
 				"display_name": "Nueva Empresa",
-				"plan_id":      "standard",
+				"plan_id":      "basic",
 			})
 		case r.URL.Path == "/admin/tenants/t-new/installations" && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(map[string]any{"items": []any{}})
@@ -296,7 +296,7 @@ func TestTenants_CreateAndIssueEnrollmentCode(t *testing.T) {
 	form := url.Values{
 		"slug":         {"nueva-empresa"},
 		"display_name": {"Nueva Empresa C.A."},
-		"plan_id":      {"standard"},
+		"plan_id":      {"basic"},
 	}
 	recCreate := postFormWithCSRF(router, "/tenants/new", form, sess)
 	if recCreate.Code != http.StatusOK {

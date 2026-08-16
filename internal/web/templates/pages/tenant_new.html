@@ -31,10 +31,23 @@
 
             <div class="wapp-field">
                 <label class="wapp-field__label" for="tenant-plan">Plan inicial</label>
+                {{/*
+                  DEUDA CONOCIDA (acoplamiento): esta lista DUPLICA el catálogo `public.plans` del
+                  cloud, sembrado en las migraciones 0032 (basic, pro) y 0039 (commerce, advisor_ai,
+                  advisor_ai_pro) de wapp-cloud-platform. `tenants.plan_id` es FK a `plans(id)`: un
+                  `value` que no exista ahí revienta la FK y el operador ve un 500 opaco (el mapeo de
+                  errores del cloud solo reconoce la violación de UNIQUE, no la de FK).
+                  Mientras no exista un endpoint que liste los planes, el `value` DEBE ser el id real.
+                  Lo ata `TestTenantNew_PlanOptionsExistenEnElCatalogo` (catalog_test.go).
+                  Preseleccionado `basic`: es el plan de entrada, el mismo que el cloud resuelve
+                  cuando `plan_id` es NULL — dar de alta nunca debe regalar features de pago.
+                */}}
                 <select class="wapp-field__control" id="tenant-plan" name="plan_id">
-                    <option value="standard" selected>Standard</option>
-                    <option value="enterprise">Enterprise</option>
+                    <option value="basic" selected>Básico</option>
+                    <option value="commerce">Comercio</option>
                     <option value="pro">Pro</option>
+                    <option value="advisor_ai">Asesor IA</option>
+                    <option value="advisor_ai_pro">Asesor IA Pro</option>
                 </select>
             </div>
 

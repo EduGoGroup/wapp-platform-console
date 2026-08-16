@@ -22,12 +22,12 @@ func TestTemplates_NoInlineStyles(t *testing.T) {
 		case r.URL.Path == "/admin/tenants" && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"items": []map[string]any{
-					{"id": "t-1", "slug": "empresa-alfa", "display_name": "Empresa Alfa", "plan_id": "standard", "revoked_at": nil},
+					{"id": "t-1", "slug": "empresa-alfa", "display_name": "Empresa Alfa", "plan_id": "basic", "revoked_at": nil},
 				},
 			})
 		case r.URL.Path == "/admin/tenants/t-1" && r.Method == http.MethodGet:
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"id": "t-1", "slug": "empresa-alfa", "display_name": "Empresa Alfa", "plan_id": "standard",
+				"id": "t-1", "slug": "empresa-alfa", "display_name": "Empresa Alfa", "plan_id": "basic",
 				"revoked_at": nil, "created_at": "2026-08-14T00:00:00Z", "features": []string{"cart_basic"},
 			})
 		case r.URL.Path == "/admin/tenants/t-1/installations" && r.Method == http.MethodGet:
@@ -93,7 +93,7 @@ func TestTemplates_NoInlineStyles(t *testing.T) {
 	}
 
 	// tenant_created: solo se renderiza tras un alta exitosa.
-	form := url.Values{"slug": {"nueva-empresa"}, "display_name": {"Nueva Empresa"}, "plan_id": {"standard"}}
+	form := url.Values{"slug": {"nueva-empresa"}, "display_name": {"Nueva Empresa"}, "plan_id": {"basic"}}
 	recCreate := postFormWithCSRF(router, "/tenants/new", form, sess)
 	if strings.Contains(recCreate.Body.String(), `style="`) {
 		t.Error("la página tenant_created sirve un atributo style= inline; la CSP lo descarta en el navegador (A-04)")

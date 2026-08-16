@@ -54,9 +54,24 @@
                                 {{ end }}
                             </select>
 
+                            {{/*
+                              DEUDA CONOCIDA (acoplamiento): esta lista DUPLICA el catálogo
+                              `public.iam_roles` del cloud (plantillas globales sembradas en la
+                              migración 0015: tenant_admin, operator, viewer). `resolveRoleID` busca
+                              por `name` o UUID y devuelve ErrInvalidInput -> 400 si no encuentra, así
+                              que el `value` DEBE ser el nombre real del rol.
+                              `platform_admin` (0059) NO se ofrece aquí a propósito: es el rol de la
+                              propia plataforma (tenants.revoke.any / tenants.restore.any), no el de un
+                              cliente, y este formulario adscribe al usuario a UN tenant. Ofrecerlo
+                              convertiría la bandeja de autoservicio en una vía de escalada de
+                              privilegios — la misma doctrina que ya deja fuera la casilla
+                              `wapp.platform`. Se concede fuera de banda.
+                              Lo ata `TestAccessRequests_RoleOptionsExistenEnElCatalogo`
+                              (catalog_test.go).
+                            */}}
                             <select name="role" required class="wapp-field__control field-control--compact">
                                 <option value="operator" selected>Operador</option>
-                                <option value="admin">Administrador</option>
+                                <option value="tenant_admin">Administrador de la empresa</option>
                                 <option value="viewer">Lector</option>
                             </select>
                         </div>
