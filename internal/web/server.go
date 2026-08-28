@@ -10,9 +10,11 @@ import (
 	"time"
 
 	"github.com/EduGoGroup/wapp-platform-console/internal/adminclient"
-	"github.com/EduGoGroup/wapp-platform-console/internal/authclient"
 	"github.com/EduGoGroup/wapp-platform-console/internal/config"
+	"github.com/EduGoGroup/wapp-shared/iam"
 	"github.com/EduGoGroup/wapp-shared/ui"
+	sharedweb "github.com/EduGoGroup/wapp-shared/web"
+	webgin "github.com/EduGoGroup/wapp-shared/web/gin"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,42 +24,48 @@ var templatesFS embed.FS
 //go:embed static/css/app.css
 var appCSS []byte
 
-func init() {
-	gin.SetMode(gin.ReleaseMode)
-}
+// systemWappPlatform es la clave de ESTA aplicación en el catálogo de identity (`iam.systems`). El
+// BFF del cliente se presenta con otra (`wapp.bff`): son dos perímetros de autorización distintos y
+// compartir el cliente de identidad no los acerca ni un milímetro.
+const systemWappPlatform = "wapp.platform"
 
-// NewRouter construye el motor Gin sin rate limiter desmontable: si cfg.RateLimitEnabled crea uno,
-// se cierra de inmediato en vez de descartarse. Esta función no tiene forma de exponer el cleanup más
-// tarde (usa NewRouterWithLimiter si necesitas apagarlo de forma ordenada al final de la vida del
-// router); descartarlo sin más dejaba viva para siempre la goroutine de cleanupLoop de
-// keyedRateLimiter en cualquier caller que activara el limiter por esta vía.
+// NewRouter construye el motor Gin y descarta el cleanup del rate limiter, que aquí no hace falta:
+// el limitador de `wapp-shared/web` no arranca ninguna goroutine y purga sus claves inactivas de
+// forma perezosa dentro de Allow(), así que no hay barrido que filtrar ni mapa que crezca sin tope.
+//
+// Usa NewRouterWithLimiter solo si eres el dueño del ciclo de vida y quieres liberar las entradas al
+// apagar (lo hace bootstrap).
 func NewRouter(cfg *config.Config) *gin.Engine {
-	router, cleanup := NewRouterWithLimiter(cfg)
-	if cleanup != nil {
-		cleanup()
-	}
+	router, _ := NewRouterWithLimiter(cfg)
 	return router
 }
 
 // NewRouterWithLimiter construye el motor Gin y una función de limpieza para el rate limiter.
 func NewRouterWithLimiter(cfg *config.Config) (*gin.Engine, func()) {
+	webgin.SetReleaseMode()
 	router := gin.New()
 
-	if err := router.SetTrustedProxies(parseTrustedProxies(cfg.TrustedProxies)); err != nil {
+	if err := webgin.SetTrustedProxies(router, cfg.TrustedProxies); err != nil {
 		slog.Error("lista de proxies de confianza inválida", "valor", cfg.TrustedProxies, "error", err)
 		panic(err)
 	}
 
 	router.Use(gin.Recovery())
-	router.Use(slogMiddleware())
-	router.Use(SecurityHeadersMiddleware(cfg))
-	router.Use(CORSMiddleware(cfg))
+	router.Use(webgin.SlogLogger())
+	router.Use(webgin.SecurityHeaders(sharedweb.SecurityOptions{HSTS: cfg.HSTSEnabled}))
+	router.Use(webgin.CORS(sharedweb.CORSOptions{
+		AllowedOrigins: sharedweb.ParseOrigins(cfg.AllowedOrigins),
+	}))
 
-	var rateLimiter *keyedRateLimiter
+	var rateLimiter *sharedweb.KeyedRateLimiter
 	if cfg.RateLimitEnabled {
-		var rlMiddleware gin.HandlerFunc
-		rlMiddleware, rateLimiter = RateLimitMiddleware(cfg)
-		router.Use(rlMiddleware)
+		rateLimiter = sharedweb.NewKeyedRateLimiter(sharedweb.RateLimiterOptions{
+			RPS:        cfg.RateLimitRPS,
+			Burst:      int(cfg.RateLimitBurst),
+			TTL:        cfg.RateLimitTTL,
+			PurgeEvery: cfg.RateLimitPurgeEvery,
+		})
+		router.Use(webgin.RateLimit(rateLimiter))
 	}
 
 	var tmpl *template.Template
@@ -131,14 +139,27 @@ func NewRouterWithLimiter(cfg *config.Config) (*gin.Engine, func()) {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy", "time": time.Now().UTC().Format(time.RFC3339)})
 	})
 
-	router.Use(CSRFMiddleware(cfg))
+	router.Use(webgin.CSRF(csrfOptions(cfg)))
 
 	// Clientes
 	adminTransport := adminclient.NewTransport(cfg.AdminAPIBaseURL, cfg.UpstreamTimeout)
 	tenantsClient := adminclient.NewTenantsClient(adminTransport)
 	installationsClient := adminclient.NewInstallationsClient(adminTransport)
 	accessRequestsClient := adminclient.NewAccessRequestsClient(adminTransport)
-	authClient := authclient.NewClient(cfg.IdentityBaseURL, cfg.PublicAPIBaseURL, cfg.UpstreamTimeout)
+
+	// El `system` con el que esta consola se presenta ante identity es CAMPO del cliente, no una
+	// constante del módulo: el System Gate autoriza aplicaciones (`wapp.platform`), no ecosistemas.
+	// Unas opciones que no pueden funcionar fallan aquí, en el arranque, y no dentro de un login.
+	authClient, err := iam.NewClient(iam.Options{
+		System:          systemWappPlatform,
+		IdentityBaseURL: cfg.IdentityBaseURL,
+		PlatformBaseURL: cfg.PublicAPIBaseURL,
+		Timeout:         cfg.UpstreamTimeout,
+	})
+	if err != nil {
+		slog.Error("configuración del cliente de identidad inválida", "error", err)
+		panic(err)
+	}
 
 	authH := NewAuthHandler(cfg, authClient)
 	tenantsH := NewTenantsHandler(tenantsClient, installationsClient)
@@ -153,7 +174,7 @@ func NewRouterWithLimiter(cfg *config.Config) (*gin.Engine, func()) {
 	// Rutas protegidas (AuthMiddleware de plataforma)
 	protected := router.Group("/")
 	protected.Use(authH.AuthMiddleware())
-	protected.Use(RequestDeadlineMiddleware(cfg))
+	protected.Use(webgin.RequestDeadline(cfg.UpstreamTimeout))
 
 	protected.GET("/", tenantsH.ShowTenants)
 	protected.GET("/tenants/new", provH.ShowNewTenant)
@@ -173,39 +194,4 @@ func NewRouterWithLimiter(cfg *config.Config) (*gin.Engine, func()) {
 	}
 
 	return router, cleanup
-}
-
-// slogMiddleware envía cada petición HTTP a slog (diagnóstico). Copiado tal cual de
-// wapp-guardian-bff/internal/web/server.go:271 (M-12): la consola ejecuta cortes y restauraciones
-// cross-tenant, así que necesita la misma traza mínima (quién, desde dónde, qué status) que el BFF.
-func slogMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		start := time.Now()
-		path := c.Request.URL.Path
-		c.Next()
-		latency := time.Since(start)
-		status := c.Writer.Status()
-		if status >= 400 {
-			slog.Warn("petición web con error",
-				"status", status, "method", c.Request.Method, "path", path,
-				"latency", latency, "ip", c.ClientIP())
-		} else {
-			slog.Info("petición web completada",
-				"status", status, "method", c.Request.Method, "path", path, "latency", latency)
-		}
-	}
-}
-
-func parseTrustedProxies(raw string) []string {
-	if strings.TrimSpace(raw) == "" {
-		return nil
-	}
-	var out []string
-	for _, p := range strings.Split(raw, ",") {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			out = append(out, p)
-		}
-	}
-	return out
 }

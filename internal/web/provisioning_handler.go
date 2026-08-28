@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/EduGoGroup/wapp-platform-console/internal/adminclient"
+	webgin "github.com/EduGoGroup/wapp-shared/web/gin"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,8 +28,8 @@ func (h *ProvisioningHandler) ShowNewTenant(c *gin.Context) {
 		"ContentTemplate": "tenant_new.html",
 		"CurrentPath":     "/tenants/new",
 		"IsAuthenticated": true,
-		"CSRFToken":       c.GetString("csrf_token"),
-		"Nonce":           c.GetString("csp_nonce"),
+		"CSRFToken":       webgin.CSRFTokenFromContext(c),
+		"Nonce":           webgin.NonceFromContext(c),
 	})
 }
 
@@ -37,7 +38,7 @@ func (h *ProvisioningHandler) DoCreateTenant(c *gin.Context) {
 	slug := strings.TrimSpace(c.PostForm("slug"))
 	displayName := strings.TrimSpace(c.PostForm("display_name"))
 	planID := strings.TrimSpace(c.PostForm("plan_id"))
-	token := c.GetString(ctxAccessToken)
+	token := webgin.AccessTokenFromContext(c)
 
 	if slug == "" || displayName == "" {
 		c.HTML(http.StatusBadRequest, "base.html", gin.H{
@@ -49,8 +50,8 @@ func (h *ProvisioningHandler) DoCreateTenant(c *gin.Context) {
 			"PlanID":          planID,
 			"CurrentPath":     "/tenants/new",
 			"IsAuthenticated": true,
-			"CSRFToken":       c.GetString("csrf_token"),
-			"Nonce":           c.GetString("csp_nonce"),
+			"CSRFToken":       webgin.CSRFTokenFromContext(c),
+			"Nonce":           webgin.NonceFromContext(c),
 		})
 		return
 	}
@@ -72,8 +73,8 @@ func (h *ProvisioningHandler) DoCreateTenant(c *gin.Context) {
 			"PlanID":          planID,
 			"CurrentPath":     "/tenants/new",
 			"IsAuthenticated": true,
-			"CSRFToken":       c.GetString("csrf_token"),
-			"Nonce":           c.GetString("csp_nonce"),
+			"CSRFToken":       webgin.CSRFTokenFromContext(c),
+			"Nonce":           webgin.NonceFromContext(c),
 		})
 		return
 	}
@@ -86,15 +87,15 @@ func (h *ProvisioningHandler) DoCreateTenant(c *gin.Context) {
 		"DisplayName":     displayName,
 		"CurrentPath":     "/tenants/new",
 		"IsAuthenticated": true,
-		"CSRFToken":       c.GetString("csrf_token"),
-		"Nonce":           c.GetString("csp_nonce"),
+		"CSRFToken":       webgin.CSRFTokenFromContext(c),
+		"Nonce":           webgin.NonceFromContext(c),
 	})
 }
 
 // DoIssueEnrollmentCode genera y muestra un código de activación de Edge.
 func (h *ProvisioningHandler) DoIssueEnrollmentCode(c *gin.Context) {
 	tenantID := c.Param("id")
-	token := c.GetString(ctxAccessToken)
+	token := webgin.AccessTokenFromContext(c)
 
 	res, err := h.tenants.IssueEnrollmentCode(c.Request.Context(), token, tenantID, 86400)
 	if err != nil {
@@ -125,7 +126,7 @@ func (h *ProvisioningHandler) DoIssueEnrollmentCode(c *gin.Context) {
 		"CodeExpiresAt":   res.ExpiresAt,
 		"CurrentPath":     "/",
 		"IsAuthenticated": true,
-		"CSRFToken":       c.GetString("csrf_token"),
-		"Nonce":           c.GetString("csp_nonce"),
+		"CSRFToken":       webgin.CSRFTokenFromContext(c),
+		"Nonce":           webgin.NonceFromContext(c),
 	})
 }
