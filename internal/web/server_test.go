@@ -155,9 +155,12 @@ func TestStaticCSS_ServedSameOrigin(t *testing.T) {
 // TestNewRouter_DoesNotLeakRateLimiterGoroutine fija el hallazgo #6 de CODE-REVIEW-2026-08-15:
 // NewRouter descartaba el cleanup del rate limiter, así que si algún caller activaba
 // RateLimitEnabled, la goroutine de cleanupLoop (ticker de 1 minuto, bloqueada en select{} hasta que
-// alguien cierre l.stop) quedaba viva para siempre. Aquí se llama NewRouter muchas veces con el
-// limiter activo y se comprueba que el conteo de goroutines converge de vuelta a la línea base: sin
-// el fix, cada llamada deja una goroutine colgada que nunca sale.
+// alguien la parase) quedaba viva para siempre. Aquí se llama NewRouter muchas veces con el limiter
+// activo y se comprueba que el conteo de goroutines converge de vuelta a la línea base.
+//
+// Hoy el invariante se cumple por construcción: keyedRateLimiter ya no arranca ninguna goroutine (la
+// purga es perezosa dentro de allow(), ver TestNewRouter_RateLimiterPurgaSusEntradas). El test se
+// mantiene como guardián: si alguien vuelve a meter un barrido en background sin dueño, aquí sale.
 //
 // Deliberadamente SIN t.Parallel(): runtime.NumGoroutine() es un conteo global del proceso, y correr
 // junto a los demás tests (todos marcados Parallel) lo llenaría de ruido ajeno.

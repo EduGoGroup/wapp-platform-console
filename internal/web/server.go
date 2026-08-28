@@ -26,16 +26,17 @@ func init() {
 	gin.SetMode(gin.ReleaseMode)
 }
 
-// NewRouter construye el motor Gin sin rate limiter desmontable: si cfg.RateLimitEnabled crea uno,
-// se cierra de inmediato en vez de descartarse. Esta función no tiene forma de exponer el cleanup más
-// tarde (usa NewRouterWithLimiter si necesitas apagarlo de forma ordenada al final de la vida del
-// router); descartarlo sin más dejaba viva para siempre la goroutine de cleanupLoop de
-// keyedRateLimiter en cualquier caller que activara el limiter por esta vía.
+// NewRouter construye el motor Gin y descarta el cleanup del rate limiter, que aquí no hace falta:
+// el limitador no arranca ninguna goroutine y purga sus claves inactivas de forma perezosa dentro de
+// allow(), así que no hay barrido que filtrar ni mapa que crezca sin tope.
+//
+// Antes esta función llamaba al cleanup nada más construir el router para no filtrar la goroutine de
+// barrido, y el precio era peor que la fuga que evitaba: el limitador seguía operando con el barrido
+// muerto y su mapa `entries` crecía sin límite, una entrada por IP de cliente. Ese intercambio ya no
+// existe. Usa NewRouterWithLimiter solo si eres el dueño del ciclo de vida y quieres liberar las
+// entradas al apagar (lo hace bootstrap).
 func NewRouter(cfg *config.Config) *gin.Engine {
-	router, cleanup := NewRouterWithLimiter(cfg)
-	if cleanup != nil {
-		cleanup()
-	}
+	router, _ := NewRouterWithLimiter(cfg)
 	return router
 }
 
