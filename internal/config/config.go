@@ -30,8 +30,8 @@ type Config struct {
 	RateLimitBurst   float64
 	// RateLimitTTL es la inactividad tras la cual se desaloja la entrada de una clave del limitador,
 	// y RateLimitPurgeEvery cada cuánto se intenta ese barrido. Valor <= 0 → los valores por defecto
-	// de web.newKeyedRateLimiter (5 min / 1 min). Se exponen aquí para poder bajarlos a milisegundos
-	// en los tests sin tocar constantes globales.
+	// de web.NewKeyedRateLimiter (wapp-shared/web: 10 min / 1 min). Se exponen aquí para poder
+	// bajarlos a milisegundos en los tests sin tocar constantes globales.
 	RateLimitTTL        time.Duration
 	RateLimitPurgeEvery time.Duration
 

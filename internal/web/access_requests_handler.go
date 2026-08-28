@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/EduGoGroup/wapp-platform-console/internal/adminclient"
+	webgin "github.com/EduGoGroup/wapp-shared/web/gin"
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,7 +27,7 @@ func NewAccessRequestsHandler(accessRequests *adminclient.AccessRequestsClient, 
 
 // ShowAccessRequests muestra las solicitudes pendientes en la bandeja.
 func (h *AccessRequestsHandler) ShowAccessRequests(c *gin.Context) {
-	token := c.GetString(ctxAccessToken)
+	token := webgin.AccessTokenFromContext(c)
 	requests, err := h.accessRequests.ListAccessRequests(c.Request.Context(), token, "pending")
 	if err != nil {
 		slog.Error("error listando solicitudes de acceso", "error", err)
@@ -46,8 +47,8 @@ func (h *AccessRequestsHandler) ShowAccessRequests(c *gin.Context) {
 		"Tenants":         tenants,
 		"CurrentPath":     "/access-requests",
 		"IsAuthenticated": true,
-		"CSRFToken":       c.GetString("csrf_token"),
-		"Nonce":           c.GetString("csp_nonce"),
+		"CSRFToken":       webgin.CSRFTokenFromContext(c),
+		"Nonce":           webgin.NonceFromContext(c),
 		"Error":           flashError(c.Query("error")),
 		"Success":         flashSuccess(c.Query("success")),
 	})
@@ -59,7 +60,7 @@ func (h *AccessRequestsHandler) DoApproveAccessRequest(c *gin.Context) {
 	tenantID := strings.TrimSpace(c.PostForm("tenant_id"))
 	role := strings.TrimSpace(c.PostForm("role"))
 	systems := c.PostFormArray("systems")
-	token := c.GetString(ctxAccessToken)
+	token := webgin.AccessTokenFromContext(c)
 
 	if tenantID == "" || role == "" {
 		c.Redirect(http.StatusSeeOther, "/access-requests?error=missing_fields")
@@ -112,7 +113,7 @@ func (h *AccessRequestsHandler) DoApproveAccessRequest(c *gin.Context) {
 func (h *AccessRequestsHandler) DoRejectAccessRequest(c *gin.Context) {
 	id := c.Param("id")
 	reason := strings.TrimSpace(c.PostForm("reason"))
-	token := c.GetString(ctxAccessToken)
+	token := webgin.AccessTokenFromContext(c)
 
 	if reason == "" {
 		c.Redirect(http.StatusSeeOther, "/access-requests?error=missing_reason")

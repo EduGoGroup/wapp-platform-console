@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	sharedweb "github.com/EduGoGroup/wapp-shared/web"
 )
 
 func TestAuth_LoginSuccess(t *testing.T) {
@@ -263,9 +265,9 @@ func TestAuth_ExpiredSessionRedirectsToLogin(t *testing.T) {
 	router := NewRouter(testConfig("http://127.0.0.1:8100", "http://127.0.0.1:8103", "http://127.0.0.1:8200"))
 
 	expiredToken := makeAdminToken(t, time.Now().Add(-time.Hour))
-	val, err := encodeSession(sessionData{AccessToken: expiredToken})
+	val, err := sharedweb.EncodeSession(sharedweb.SessionData{AccessToken: expiredToken})
 	if err != nil {
-		t.Fatalf("encodeSession: %v", err)
+		t.Fatalf("EncodeSession: %v", err)
 	}
 	sess := &http.Cookie{Name: sessionCookieName, Value: val}
 
