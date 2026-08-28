@@ -1,7 +1,9 @@
 package web
 
 import (
+	"bytes"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -297,5 +299,85 @@ func TestAuth_UnauthenticatedRedirectsToLogin(t *testing.T) {
 	}
 	if loc := rec.Header().Get("Location"); loc != "/login" {
 		t.Fatalf("Location = %q, want /login", loc)
+	}
+}
+
+// TestAuth_ElCorreoSobreviveAlIntentoFallido — el operador no debe reescribir su correo en cada
+// intento. Nació de campo (2026-08-28): tras un login fallido el formulario salía con el campo vacío
+// y solo el placeholder, así que parecía que ni siquiera se había enviado.
+//
+// 🔴 La contraseña NO se repuebla, y el test lo exige: repoblar el correo es comodidad; repoblar la
+// contraseña sería mandarla de vuelta al navegador en el HTML.
+func TestAuth_ElCorreoSobreviveAlIntentoFallido(t *testing.T) {
+	t.Parallel()
+	identitySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer identitySrv.Close()
+
+	cfg := testConfig("http://127.0.0.1:8100", "http://127.0.0.1:8103", identitySrv.URL)
+	router := NewRouter(cfg)
+
+	const correo = "staff-plataforma@wapp.internal"
+	const clave = "la-que-tecleo-y-no-cuela"
+	form := url.Values{"email": {correo}, "password": {clave}}
+	rec := postFormWithCSRF(router, "/login", form, nil)
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `value="`+correo+`"`) {
+		t.Fatalf("el correo tecleado tiene que volver en el formulario y no vuelve; cuerpo: %s", body)
+	}
+	if strings.Contains(body, clave) {
+		t.Fatal("la contraseña NO puede volver al navegador dentro del HTML")
+	}
+}
+
+// TestAuth_ElLogDISTINGUE401De403 — el mensaje de la pantalla funde credenciales y System Gate a
+// propósito (no se le dice al visitante si el correo existe), así que el LOG es el único sitio donde
+// queda la diferencia. Quien diagnostica un «no puedo entrar» decide con esa línea si buscar la
+// contraseña o la fila de iam.user_systems.
+//
+// 🔴 Esto nació de un fallo real: el 2026-08-28 un operador no pudo entrar en UAT y el log solo tenía
+// un 401 pelado del middleware. La causa hubo que deducirla por la AUSENCIA de la línea del System
+// Gate, porque la rama de credenciales no escribía nada — mientras el comentario del handler
+// prometía que «la diferencia sí queda en el log».
+func TestAuth_ElLogDISTINGUE401De403(t *testing.T) {
+	casos := []struct {
+		nombre     string
+		estado     int
+		esperado   string
+		noEsperado string
+	}{
+		{"credenciales", http.StatusUnauthorized, "credenciales inválidas", "System Gate"},
+		{"system_gate", http.StatusForbidden, "System Gate", "credenciales inválidas"},
+	}
+	for _, c := range casos {
+		t.Run(c.nombre, func(t *testing.T) {
+			identitySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(c.estado)
+			}))
+			defer identitySrv.Close()
+
+			var log bytes.Buffer
+			anterior := slog.Default()
+			slog.SetDefault(slog.New(slog.NewTextHandler(&log, &slog.HandlerOptions{Level: slog.LevelWarn})))
+			defer slog.SetDefault(anterior)
+
+			cfg := testConfig("http://127.0.0.1:8100", "http://127.0.0.1:8103", identitySrv.URL)
+			form := url.Values{"email": {"quien@wapp.internal"}, "password": {"lo-que-sea"}}
+			postFormWithCSRF(NewRouter(cfg), "/login", form, nil)
+
+			escrito := log.String()
+			if !strings.Contains(escrito, c.esperado) {
+				t.Fatalf("con identity devolviendo %d, el log tiene que decir %q y dice: %s", c.estado, c.esperado, escrito)
+			}
+			if strings.Contains(escrito, c.noEsperado) {
+				t.Fatalf("con identity devolviendo %d, el log NO puede decir %q: %s", c.estado, c.noEsperado, escrito)
+			}
+			// CERO PII: el correo del operador no entra en el log de esta consola.
+			if strings.Contains(escrito, "quien@wapp.internal") {
+				t.Fatalf("el correo NO puede aparecer en el log: %s", escrito)
+			}
+		})
 	}
 }

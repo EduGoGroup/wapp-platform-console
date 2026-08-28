@@ -38,39 +38,56 @@ func (h *AuthHandler) ShowLogin(c *gin.Context) {
 		c.Redirect(http.StatusSeeOther, "/")
 		return
 	}
-	h.renderLogin(c, http.StatusOK, "")
+	h.renderLogin(c, http.StatusOK, "", "")
 }
 
 // DoLogin procesa las credenciales del operador de plataforma.
 //
 // El 401 de credenciales y el 403 del System Gate llegan como sentinelas distintos —`iam` no los
 // colapsa— y aquí se muestran con el mismo texto a propósito: al que está en la pantalla de login no
-// se le dice si el correo existe. La diferencia sí queda en el log.
+// se le dice si el correo existe.
+//
+// 🔑 La distinción, que en la pantalla se oculta a propósito, en el LOG es lo único que hay: quien
+// diagnostica un «no puedo entrar» necesita saber si buscar la contraseña o la fila de
+// `iam.user_systems`. Por eso las dos ramas escriben, y por eso hay un test que lo vigila —hasta el
+// 2026-08-28 esto estaba prometido en este mismo comentario y solo se cumplía para una de las dos.
 func (h *AuthHandler) DoLogin(c *gin.Context) {
 	email := strings.TrimSpace(c.PostForm("email"))
 	password := c.PostForm("password")
 	if email == "" || password == "" {
-		h.renderLogin(c, http.StatusBadRequest, "Introduce tu correo y contraseña.")
+		h.renderLogin(c, http.StatusBadRequest, "Introduce tu correo y contraseña.", email)
 		return
 	}
 
 	res, err := h.auth.Login(c.Request.Context(), email, password)
 	if err != nil {
-		if errors.Is(err, iam.ErrForbidden) {
-			slog.Warn("login de plataforma rechazado por el System Gate", "error", err)
+		// 🔴 LAS DOS RAMAS LOGUEAN, y la de credenciales no lo hacía.
+		//
+		// El 2026-08-28 un operador no pudo entrar en UAT y el log NO decía por qué: solo quedaba la
+		// línea del middleware con un 401 pelado. La causa hubo que DEDUCIRLA por la AUSENCIA de la
+		// línea del System Gate —«no hay log de 403, luego fue 401»—, que es un razonamiento que
+		// funciona una vez y deja ciego a cualquiera la siguiente. El comentario de arriba prometía
+		// que «la diferencia sí queda en el log» y solo era verdad para una de las dos.
+		//
+		// Se registra la CAUSA, nunca el correo: en el log de esta consola no entra PII.
+		switch {
+		case errors.Is(err, iam.ErrForbidden):
+			slog.Warn("login de plataforma rechazado por el System Gate: falta la fila en iam.user_systems para wapp.platform", "error", err)
+		case errors.Is(err, iam.ErrUnauthorized):
+			slog.Warn("login de plataforma rechazado por identity: credenciales inválidas", "error", err)
 		}
 		if errors.Is(err, iam.ErrUnauthorized) || errors.Is(err, iam.ErrForbidden) {
-			h.renderLogin(c, http.StatusUnauthorized, "Credenciales inválidas o sin acceso a la consola de plataforma.")
+			h.renderLogin(c, http.StatusUnauthorized, "Credenciales inválidas o sin acceso a la consola de plataforma.", email)
 			return
 		}
 		slog.Warn("login de plataforma rechazado", "error", err)
-		h.renderLogin(c, http.StatusUnauthorized, "No se pudo iniciar sesión. Verifica tus credenciales.")
+		h.renderLogin(c, http.StatusUnauthorized, "No se pudo iniciar sesión. Verifica tus credenciales.", email)
 		return
 	}
 
 	if err := h.startSession(c, res); err != nil {
 		slog.Error("falló iniciar sesión", "error", err)
-		h.renderLogin(c, http.StatusInternalServerError, "Error interno al iniciar sesión.")
+		h.renderLogin(c, http.StatusInternalServerError, "Error interno al iniciar sesión.", email)
 		return
 	}
 
@@ -199,12 +216,18 @@ func (h *AuthHandler) refreshSession(c *gin.Context, refreshToken string) (*iam.
 	return res, nil
 }
 
-func (h *AuthHandler) renderLogin(c *gin.Context, status int, errMsg string) {
+// renderLogin pinta la pantalla de entrada.
+//
+// `email` es el correo que el operador acaba de teclear, y se devuelve al formulario para que no
+// tenga que reescribirlo en cada intento. La contraseña NO se repuebla, por motivos evidentes.
+// Va vacío en el GET inicial.
+func (h *AuthHandler) renderLogin(c *gin.Context, status int, errMsg, email string) {
 	c.HTML(status, "base.html", gin.H{
 		"Title":           "Iniciar sesión",
 		"Subtitle":        "Consola de Plataforma",
 		"ContentTemplate": "login.html",
 		"Error":           errMsg,
+		"Email":           email,
 		"CSRFToken":       webgin.CSRFTokenFromContext(c),
 		"Nonce":           webgin.NonceFromContext(c),
 		"IsAuthenticated": false,
