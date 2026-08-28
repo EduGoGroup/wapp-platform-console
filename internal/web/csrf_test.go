@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	sharedweb "github.com/EduGoGroup/wapp-shared/web"
+	webgin "github.com/EduGoGroup/wapp-shared/web/gin"
 	"github.com/gin-gonic/gin"
 )
 
@@ -56,9 +58,9 @@ func TestCSRF_RejectsMutatingWithWrongToken(t *testing.T) {
 	csrf := mintCSRF(router)
 
 	form := url.Values{
-		"email":       {"a@b.com"},
-		"password":    {"secret"},
-		csrfFieldName: {csrf.Value + "-tampered"},
+		"email":                 {"a@b.com"},
+		"password":              {"secret"},
+		sharedweb.CSRFFieldName: {csrf.Value + "-tampered"},
 	}
 	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -80,7 +82,7 @@ func TestCSRF_RejectsPatchWithoutToken(t *testing.T) {
 	cfg := testConfig("http://127.0.0.1:8100", "http://127.0.0.1:8103", "http://127.0.0.1:8200")
 
 	probe := gin.New()
-	probe.Use(CSRFMiddleware(cfg))
+	probe.Use(webgin.CSRF(csrfOptions(cfg)))
 	probe.PATCH("/probe", func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	req := httptest.NewRequest(http.MethodPatch, "/probe", nil)

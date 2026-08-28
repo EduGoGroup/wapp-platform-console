@@ -11,6 +11,7 @@ import (
 
 	"github.com/EduGoGroup/wapp-platform-console/internal/config"
 	sharedjwt "github.com/EduGoGroup/wapp-shared/auth/jwt"
+	sharedweb "github.com/EduGoGroup/wapp-shared/web"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -46,9 +47,9 @@ func makeAdminToken(t *testing.T, exp time.Time) string {
 func adminSessionCookie(t *testing.T) *http.Cookie {
 	t.Helper()
 	token := makeAdminToken(t, time.Now().Add(time.Hour))
-	val, err := encodeSession(sessionData{AccessToken: token, RefreshToken: "rt-1"})
+	val, err := sharedweb.EncodeSession(sharedweb.SessionData{AccessToken: token, RefreshToken: "rt-1"})
 	if err != nil {
-		t.Fatalf("encodeSession: %v", err)
+		t.Fatalf("EncodeSession: %v", err)
 	}
 	return &http.Cookie{Name: sessionCookieName, Value: val}
 }
@@ -67,7 +68,7 @@ func mintCSRF(router http.Handler) *http.Cookie {
 
 func postFormWithCSRF(router http.Handler, path string, form url.Values, sessionCookie *http.Cookie) *httptest.ResponseRecorder {
 	csrf := mintCSRF(router)
-	form.Set(csrfFieldName, csrf.Value)
+	form.Set(sharedweb.CSRFFieldName, csrf.Value)
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -155,9 +156,14 @@ func TestStaticCSS_ServedSameOrigin(t *testing.T) {
 // TestNewRouter_DoesNotLeakRateLimiterGoroutine fija el hallazgo #6 de CODE-REVIEW-2026-08-15:
 // NewRouter descartaba el cleanup del rate limiter, así que si algún caller activaba
 // RateLimitEnabled, la goroutine de cleanupLoop (ticker de 1 minuto, bloqueada en select{} hasta que
-// alguien cierre l.stop) quedaba viva para siempre. Aquí se llama NewRouter muchas veces con el
-// limiter activo y se comprueba que el conteo de goroutines converge de vuelta a la línea base: sin
-// el fix, cada llamada deja una goroutine colgada que nunca sale.
+// alguien la parase) quedaba viva para siempre. Aquí se llama NewRouter muchas veces con el limiter
+// activo y se comprueba que el conteo de goroutines converge de vuelta a la línea base.
+//
+// Hoy el invariante se cumple por construcción: web.KeyedRateLimiter (wapp-shared/web) no arranca
+// ninguna goroutine —la purga es perezosa dentro de Allow(), ver TestNewRouter_RateLimiterPurgaSusEntradas—
+// y el módulo se comprometió a no exponer un constructor que arranque un barrido que nadie pueda parar.
+// El test se mantiene como guardián de ESTE router: si una versión futura del módulo, o un middleware
+// nuevo de la consola, vuelve a meter un barrido en background sin dueño, aquí sale.
 //
 // Deliberadamente SIN t.Parallel(): runtime.NumGoroutine() es un conteo global del proceso, y correr
 // junto a los demás tests (todos marcados Parallel) lo llenaría de ruido ajeno.

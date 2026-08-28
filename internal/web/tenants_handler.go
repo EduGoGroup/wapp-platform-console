@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/EduGoGroup/wapp-platform-console/internal/adminclient"
+	webgin "github.com/EduGoGroup/wapp-shared/web/gin"
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,7 +26,7 @@ func NewTenantsHandler(tenants *adminclient.TenantsClient, installations *adminc
 
 // ShowTenants lista las empresas registradas.
 func (h *TenantsHandler) ShowTenants(c *gin.Context) {
-	token := c.GetString(ctxAccessToken)
+	token := webgin.AccessTokenFromContext(c)
 	res, err := h.tenants.ListTenants(c.Request.Context(), token, 50, 0)
 	if err != nil {
 		slog.Error("error listando empresas", "error", err)
@@ -35,8 +36,8 @@ func (h *TenantsHandler) ShowTenants(c *gin.Context) {
 			"Error":           "No se pudieron cargar las empresas.",
 			"CurrentPath":     "/",
 			"IsAuthenticated": true,
-			"CSRFToken":       c.GetString("csrf_token"),
-			"Nonce":           c.GetString("csp_nonce"),
+			"CSRFToken":       webgin.CSRFTokenFromContext(c),
+			"Nonce":           webgin.NonceFromContext(c),
 		})
 		return
 	}
@@ -47,15 +48,15 @@ func (h *TenantsHandler) ShowTenants(c *gin.Context) {
 		"Tenants":         res.Items,
 		"CurrentPath":     "/",
 		"IsAuthenticated": true,
-		"CSRFToken":       c.GetString("csrf_token"),
-		"Nonce":           c.GetString("csp_nonce"),
+		"CSRFToken":       webgin.CSRFTokenFromContext(c),
+		"Nonce":           webgin.NonceFromContext(c),
 	})
 }
 
 // ShowTenantDetail muestra el detalle de una empresa y sus instalaciones.
 func (h *TenantsHandler) ShowTenantDetail(c *gin.Context) {
 	id := c.Param("id")
-	token := c.GetString(ctxAccessToken)
+	token := webgin.AccessTokenFromContext(c)
 
 	tenant, err := h.tenants.GetTenant(c.Request.Context(), token, id)
 	if err != nil {
@@ -77,8 +78,8 @@ func (h *TenantsHandler) ShowTenantDetail(c *gin.Context) {
 		"Installations":   installations,
 		"CurrentPath":     "/",
 		"IsAuthenticated": true,
-		"CSRFToken":       c.GetString("csrf_token"),
-		"Nonce":           c.GetString("csp_nonce"),
+		"CSRFToken":       webgin.CSRFTokenFromContext(c),
+		"Nonce":           webgin.NonceFromContext(c),
 		"Error":           flashError(c.Query("error")),
 		"Success":         flashSuccess(c.Query("success")),
 	})
@@ -92,7 +93,7 @@ func (h *TenantsHandler) ShowTenantDetail(c *gin.Context) {
 // que coincida con el slug de OTRA empresa no basta: solo vale el slug real del tenant `id`.
 func (h *TenantsHandler) DoRevokeTenant(c *gin.Context) {
 	id := c.Param("id")
-	token := c.GetString(ctxAccessToken)
+	token := webgin.AccessTokenFromContext(c)
 
 	tenant, err := h.tenants.GetTenant(c.Request.Context(), token, id)
 	if err != nil || tenant == nil {
@@ -126,7 +127,7 @@ func (h *TenantsHandler) DoRevokeTenant(c *gin.Context) {
 func (h *TenantsHandler) DoRestoreTenant(c *gin.Context) {
 	id := c.Param("id")
 	reason := strings.TrimSpace(c.PostForm("reason"))
-	token := c.GetString(ctxAccessToken)
+	token := webgin.AccessTokenFromContext(c)
 
 	if reason == "" {
 		reason = "Restauración administrativa desde consola de plataforma"
