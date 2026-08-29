@@ -2,6 +2,76 @@
    wApp Platform Console — Stylesheet
    ========================================================================== */
 
+/* ==========================================================================
+   ESTA CONSOLA ES MONOTEMA CLARA. ES UNA DECISIÓN, NO UN OLVIDO.
+   ==========================================================================
+
+   La paleta índigo/pizarra de abajo está escrita con 48 literales (`#4338CA`, `#334155`,
+   `#64748B`, `#1C1B1F`…) y ningún valor de tema. Las hojas compartidas que el layout carga
+   ANTES (`wapp-tokens.css`, `wapp-components.css`) sí traen tema: su
+   `@media (prefers-color-scheme: dark)` mueve nueve tokens de superficie y de texto. Mezclar
+   las dos cosas es el defecto que este bloque cierra: un literal fijo pintado sobre una
+   superficie que se mueve con el tema. El par tiene que viajar entero — o los dos literales,
+   o los dos tokenizados; nunca uno de cada.
+
+   Medido en Chrome con `prefers-color-scheme: dark` emulado por CDP, antes de este bloque:
+
+     · VIVO. `.wapp-auth-container` (compartida) fija `color: var(--wapp-color-on-bg)` y la
+       hereda todo lo que va dentro de la tarjeta de login, cuyo fondo es el literal blanco de
+       `.wapp-card` de más abajo. Cualquier texto sin clase propia ahí dentro salía
+       `#DDE4E1` sobre `#FFFFFF` = 1,29:1.
+     · A UN BORRADO. Las reglas de más abajo que duplican las compartidas (`.wapp-card`,
+       `.wapp-title`, `.wapp-field__label`…) son hoy lo ÚNICO que tapa los tokens oscuros,
+       por orden de carga. Borrar el duplicado de `.wapp-card` —seis líneas, y la propia hoja
+       compartida invita a hacerlo— destapaba 21 fallos AA, entre ellos el `#1C1B1F` sobre
+       `#161D1B` = 1,00:1 de `tenant_detail`: texto invisible.
+
+   Por qué MONOTEMA y no tema-consciente: el índigo de marca `#4338CA` da 7,90:1 sobre la
+   tarjeta clara y 2,17:1 sobre la oscura. Seguir el tema obligaría a aclarar el índigo, y eso
+   es un cambio de marca, no una corrección de contraste. (Coste medido de la otra salida: 48
+   declaraciones que tokenizar, cada una con su pareja oscura, más el rediseño del índigo.)
+
+   Cómo se neutraliza: `color-scheme: light` NO basta — le dice al navegador cómo pintar sus
+   widgets, pero la media query `prefers-color-scheme` sigue casando y los tokens compartidos
+   se mueven igual. Hay que REDECLARAR los tokens con su valor CLARO dentro de la misma media
+   query y con el mismo selector; `app.css` se carga después que `wapp-tokens.css`, así que
+   con igual especificidad gana este bloque.
+
+   🔴 La lista de abajo tiene que seguir siendo EXACTAMENTE la de tokens que
+   `wapp-tokens.css` redefine en oscuro. Si un release de `wapp-shared/ui` añade uno nuevo
+   —hay un `--wapp-color-link` en camino—, este bloque se queda corto y ese token volverá a
+   moverse solo. Lo vigila `TestCSS_TokensSensiblesAlTemaNeutralizados`
+   (`internal/web/theme_test.go`), que lee la hoja del módulo PINADO: al subir la versión de
+   `ui` se pone rojo y obliga a decidir en vez de dejarlo envejecer en silencio.
+   ========================================================================== */
+
+:root {
+  /* Necesario, pero no suficiente: alinea los widgets del navegador (controles de formulario,
+     barras de scroll, autofill) con el único tema que esta consola pinta. */
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  /* Mismo selector que `wapp-tokens.css` para empatar en especificidad y ganar por orden de
+     carga. Cada valor es, a propósito, el del `:root` CLARO de esa misma hoja. */
+  :root:not([data-theme="light"]) {
+    --wapp-color-bg: #F4FBF8;
+    --wapp-color-on-bg: #161D1B;
+    --wapp-color-surface: #F4FBF8;
+    --wapp-color-on-surface: #161D1B;
+    --wapp-color-surface-variant: #DAE5E1;
+    --wapp-color-on-surface-variant: #3F4946;
+    --wapp-color-border: #6F7975;
+    --wapp-color-border-variant: #BEC9C4;
+    --wapp-color-surface-card: #FFFFFF;
+    /* Llegado con `ui v0.4.0`. Esta consola no tiene ningun `<a>` sin clase —sus enlaces
+       son `.link-back` y `.link-primary`, literales que ganan por orden de carga—, asi que
+       neutralizarlo no cambia nada de lo que se ve hoy: lo que hace es mantener la promesa
+       del bloque, que es que NINGUN token se mueva bajo los literales de la consola. */
+    --wapp-color-link: #006A60;
+  }
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
