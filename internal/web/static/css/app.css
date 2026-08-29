@@ -9,7 +9,11 @@
    La paleta índigo/pizarra de abajo está escrita con 48 literales (`#4338CA`, `#334155`,
    `#64748B`, `#1C1B1F`…) y ningún valor de tema. Las hojas compartidas que el layout carga
    ANTES (`wapp-tokens.css`, `wapp-components.css`) sí traen tema: su
-   `@media (prefers-color-scheme: dark)` mueve nueve tokens de superficie y de texto. Mezclar
+   `@media (prefers-color-scheme: dark)` mueve un punado de tokens de superficie y de texto.
+   (Aqui NO se escribe cuantos: ese numero nacio caducado. El dia que ponia «nueve» eran nueve, y
+   horas despues `ui/v0.4.0` estreno `--wapp-color-link` y pasaron a diez. Si necesitas la cifra,
+   cuenta las declaraciones `--wapp-...` que hay dentro del bloque de abajo, ignorando comentarios.
+   El test de `theme_test.go` no depende de este parrafo: deriva la lista del CSS pinado.) Mezclar
    las dos cosas es el defecto que este bloque cierra: un literal fijo pintado sobre una
    superficie que se mueve con el tema. El par tiene que viajar entero — o los dos literales,
    o los dos tokenizados; nunca uno de cada.
