@@ -306,12 +306,20 @@ func TestTenants_CreateAndIssueEnrollmentCode(t *testing.T) {
 		t.Fatal("esperado mensaje de éxito en creación")
 	}
 
-	// 2. Emisión de código
+	// 2. Emisión de código. El POST ya no pinta la pantalla: emite y redirige (M-10), así que el
+	// código se ve en el GET siguiente.
 	recCode := postFormWithCSRF(router, "/tenants/t-new/enrollment-codes", url.Values{}, sess)
-	if recCode.Code != http.StatusOK {
-		t.Fatalf("POST /tenants/t-new/enrollment-codes status = %d, want 200", recCode.Code)
+	if recCode.Code != http.StatusSeeOther {
+		t.Fatalf("POST /tenants/t-new/enrollment-codes status = %d, want 303", recCode.Code)
 	}
-	if !strings.Contains(recCode.Body.String(), "ACT-12345-67890") {
+	if loc := recCode.Header().Get("Location"); loc != "/tenants/t-new/enrollment-code" {
+		t.Fatalf("Location = %q, want /tenants/t-new/enrollment-code", loc)
+	}
+	recPantalla := seguirRedirect(t, router, recCode, sess)
+	if recPantalla.Code != http.StatusOK {
+		t.Fatalf("GET de la pantalla del código status = %d, want 200", recPantalla.Code)
+	}
+	if !strings.Contains(recPantalla.Body.String(), "ACT-12345-67890") {
 		t.Fatal("esperado código de activación en pantalla")
 	}
 }
@@ -356,8 +364,20 @@ func TestTenants_IssueEnrollmentCode_SendsTTLKeyNotTTLSeconds(t *testing.T) {
 	sess := adminSessionCookie(t)
 
 	rec := postFormWithCSRF(router, "/tenants/t-1/enrollment-codes", url.Values{}, sess)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
+	}
+	if loc := rec.Header().Get("Location"); loc != "/tenants/t-1/enrollment-code" {
+		t.Fatalf("Location = %q, want /tenants/t-1/enrollment-code", loc)
+	}
+	// El PRG entero: el payload correcto no sirve de nada si la pantalla siguiente no llega a pintar
+	// el código que se emitió con él.
+	pantalla := seguirRedirect(t, router, rec, sess)
+	if pantalla.Code != http.StatusOK {
+		t.Fatalf("GET de la pantalla del código status = %d, want 200", pantalla.Code)
+	}
+	if !strings.Contains(pantalla.Body.String(), "ACT-CONTRACT") {
+		t.Fatalf("la pantalla no muestra el código emitido. Body: %s", pantalla.Body.String())
 	}
 
 	mu.Lock()
@@ -405,10 +425,20 @@ func TestTenants_IssueEnrollmentCode_SurvivesTenantRereadFailure(t *testing.T) {
 	sess := adminSessionCookie(t)
 
 	rec := postFormWithCSRF(router, "/tenants/t-1/enrollment-codes", url.Values{}, sess)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303", rec.Code)
 	}
-	body := rec.Body.String()
+	if loc := rec.Header().Get("Location"); loc != "/tenants/t-1/enrollment-code" {
+		t.Fatalf("Location = %q, want /tenants/t-1/enrollment-code", loc)
+	}
+	// El POST ya no renderiza (M-10, POST-Redirect-GET): la pantalla, y la relectura del tenant que
+	// falla, están en el GET siguiente. Lo que este test vigila no cambió: que el código se enseñe
+	// igual y la página no quede a medias.
+	pantalla := seguirRedirect(t, router, rec, sess)
+	if pantalla.Code != http.StatusOK {
+		t.Fatalf("GET de la pantalla del código status = %d, want 200", pantalla.Code)
+	}
+	body := pantalla.Body.String()
 	if !strings.Contains(body, "ACT-SURVIVES") {
 		t.Fatalf("el código emitido debe mostrarse aunque falle la relectura del tenant, body: %s", body)
 	}

@@ -99,10 +99,24 @@ func TestTemplates_NoInlineStyles(t *testing.T) {
 		t.Error("la página tenant_created sirve un atributo style= inline; la CSP lo descarta en el navegador (A-04)")
 	}
 
-	// tenant_detail con código de enrolamiento recién emitido: es el bloque con más marcado propio
-	// (enrollment-code-box) y el que el informe señaló como "el fallo se hace más engañoso".
-	recCode := postFormWithCSRF(router, "/tenants/t-1/enrollment-codes", url.Values{}, sess)
+	// enrollment_code: el bloque con más marcado propio (wapp-secret-box) y el que el informe señaló
+	// como "el fallo se hace más engañoso". Desde M-10 vive en su propia plantilla y se llega por
+	// POST-Redirect-GET, así que el cuerpo que hay que mirar es el del GET, no el del POST (que ya
+	// solo trae el 303).
+	recPost := postFormWithCSRF(router, "/tenants/t-1/enrollment-codes", url.Values{}, sess)
+	recCode := seguirRedirect(t, router, recPost, sess)
+	if recCode.Code != http.StatusOK {
+		t.Fatalf("GET de la pantalla del código = %d, want 200. Body: %s", recCode.Code, recCode.Body.String())
+	}
 	if strings.Contains(recCode.Body.String(), `style="`) {
-		t.Error("la página tenant_detail con código de enrolamiento sirve un atributo style= inline; la CSP lo descarta en el navegador (A-04)")
+		t.Error("la página enrollment_code sirve un atributo style= inline; la CSP lo descarta en el navegador (A-04)")
+	}
+	// El bloque ya no trae CSS propio: sus clases viven en wapp-shared/ui (wapp-components.css).
+	// Si alguien las renombra aquí, la página se sirve sin estilo y nada más se entera —no hay
+	// compilación que lo cace—, así que el nombre exacto se fija en este assert.
+	for _, class := range []string{"wapp-secret-box", "wapp-secret-expiry", "wapp-snackbar--roomy"} {
+		if !strings.Contains(recCode.Body.String(), class) {
+			t.Errorf("el bloque del código de enrolamiento debe usar la clase compartida %q", class)
+		}
 	}
 }

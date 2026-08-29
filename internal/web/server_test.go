@@ -80,6 +80,29 @@ func postFormWithCSRF(router http.Handler, path string, form url.Values, session
 	return rec
 }
 
+// seguirRedirect hace lo que haría el navegador tras un 303: repetir en GET la ruta de `Location`,
+// llevándose las cookies que la respuesta acaba de poner (además de la de sesión). Existe desde que
+// la pantalla del código de enrolamiento es un POST-Redirect-GET (M-10): el POST ya no renderiza
+// nada, así que un test que solo mire su cuerpo no ve la pantalla.
+func seguirRedirect(t *testing.T, router http.Handler, post *httptest.ResponseRecorder, sessionCookie *http.Cookie) *httptest.ResponseRecorder {
+	t.Helper()
+
+	loc := post.Header().Get("Location")
+	if loc == "" {
+		t.Fatalf("la respuesta no trae Location (status %d): no hay redirect que seguir", post.Code)
+	}
+	req := httptest.NewRequest(http.MethodGet, loc, nil)
+	if sessionCookie != nil {
+		req.AddCookie(sessionCookie)
+	}
+	for _, ck := range post.Result().Cookies() {
+		req.AddCookie(ck)
+	}
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	return rec
+}
+
 func TestHealthz_Success(t *testing.T) {
 	t.Parallel()
 	router := NewRouter(testConfig("http://127.0.0.1:8100", "http://127.0.0.1:8103", "http://127.0.0.1:8200"))

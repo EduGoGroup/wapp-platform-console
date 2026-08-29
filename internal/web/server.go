@@ -163,7 +163,7 @@ func NewRouterWithLimiter(cfg *config.Config) (*gin.Engine, func()) {
 
 	authH := NewAuthHandler(cfg, authClient)
 	tenantsH := NewTenantsHandler(tenantsClient, installationsClient)
-	provH := NewProvisioningHandler(tenantsClient)
+	provH := NewProvisioningHandler(tenantsClient, cfg)
 	accessH := NewAccessRequestsHandler(accessRequestsClient, tenantsClient)
 
 	// Rutas públicas
@@ -183,6 +183,9 @@ func NewRouterWithLimiter(cfg *config.Config) (*gin.Engine, func()) {
 	protected.POST("/tenants/:id/revoke", tenantsH.DoRevokeTenant)
 	protected.POST("/tenants/:id/restore", tenantsH.DoRestoreTenant)
 	protected.POST("/tenants/:id/enrollment-codes", provH.DoIssueEnrollmentCode)
+	// La pantalla del código es un GET (POST-Redirect-GET, M-10): recargarla no reenvía el POST y por
+	// tanto no emite un código nuevo. El código llega en una cookie efímera, no en la URL.
+	protected.GET("/tenants/:id/enrollment-code", provH.ShowEnrollmentCode)
 
 	protected.GET("/access-requests", accessH.ShowAccessRequests)
 	protected.POST("/access-requests/:id/approve", accessH.DoApproveAccessRequest)

@@ -1,0 +1,24 @@
+{{ define "enrollment_code.html" }}
+{{/*
+  Pantalla PROPIA del código de enrolamiento (M-10). Deliberadamente NO evalúa `.Tenant`: la anterior
+  reusaba tenant_detail.html, que exige `.Tenant.DisplayName`, y con la relectura de la empresa caída
+  html/template abortaba a mitad de página — después de que Gin escribiera el 200 — dejando el código
+  perdido. Aquí el nombre de la empresa es adorno opcional y el código siempre se pinta.
+*/}}
+<div class="wapp-snackbar wapp-snackbar--success wapp-snackbar--roomy">
+    <h3 class="mb-2">🔑 Código de Enrolamiento Generado (Un solo uso)</h3>
+    <p class="mb-3">Copia este código y configúralo en el Edge del cliente. <strong>No se volverá a mostrar.</strong></p>
+    <div class="wapp-secret-box">
+        {{ .EnrollmentCode }}
+    </div>
+    {{ if .CodeExpiresAt }}
+    <p class="wapp-secret-expiry">Vence: {{ .CodeExpiresAt }}</p>
+    {{ end }}
+</div>
+
+<div class="mt-5">
+    <a href="/tenants/{{ .TenantID }}" class="wapp-btn wapp-btn--outlined wapp-btn--auto">
+        ← Volver al detalle{{ if .TenantName }} de {{ .TenantName }}{{ end }}
+    </a>
+</div>
+{{ end }}

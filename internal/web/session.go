@@ -16,6 +16,10 @@ import (
 const (
 	sessionCookieName = "wapp_platform_session"
 	csrfCookieName    = "wapp_platform_csrf"
+	// enrollmentCodeCookieName es la cookie EFÍMERA que lleva el código de enrolamiento del POST que
+	// lo emite al GET que lo muestra (M-10). No es una tercera cookie de sesión: vive 60 s, está
+	// acotada a la pantalla del código y el propio GET la borra.
+	enrollmentCodeCookieName = "wapp_platform_enrollment_code"
 )
 
 // Vidas de las dos cookies. Se declaran aquí y no se dejan al valor por defecto del módulo (1 h la
@@ -23,12 +27,33 @@ const (
 const (
 	sessionCookieMaxAge = 86400
 	csrfCookieMaxAge    = 24 * time.Hour
+	// La cookie del código no dura una sesión de trabajo: dura lo que tarda el navegador en seguir
+	// el 303. Es un tope de seguridad — quien la retira de verdad es el GET que la consume.
+	enrollmentCodeCookieMaxAge = 60 * time.Second
 )
 
 // sessionCookieOptions es la política de la cookie de sesión de la consola.
 func sessionCookieOptions(cfg *config.Config) sharedweb.SessionCookieOptions {
 	return sharedweb.SessionCookieOptions{
 		Name:     sessionCookieName,
+		Secure:   cfg.CookieSecure,
+		SameSite: cfg.CookieSameSite,
+	}
+}
+
+// enrollmentCodeCookieOptions es la política de la cookie efímera del código de enrolamiento. El
+// Path se acota a la pantalla destino —y por eso depende del tenant—: fuera de ella el navegador no
+// la manda, así que el código no viaja en peticiones que no tienen nada que ver con él. El HttpOnly
+// lo fija el módulo SIEMPRE; Secure y SameSite siguen la misma config que la cookie de sesión.
+//
+// El valor NO se cifra ni se firma, y está razonado en el doc de web.OneTimeCookieOptions: el
+// destinatario del código es justo quien tiene la cookie, y el código se le va a pintar en pantalla.
+// Lo único que compra la cookie es que el código no pase por la URL.
+func enrollmentCodeCookieOptions(cfg *config.Config, tenantID string) sharedweb.OneTimeCookieOptions {
+	return sharedweb.OneTimeCookieOptions{
+		Name:     enrollmentCodeCookieName,
+		Path:     enrollmentCodePath(tenantID),
+		MaxAge:   enrollmentCodeCookieMaxAge,
 		Secure:   cfg.CookieSecure,
 		SameSite: cfg.CookieSameSite,
 	}

@@ -24,6 +24,7 @@ var (
 		"revoke_failed":           "No se pudo cortar el servicio. Verifica el estado actual antes de reintentar.",
 		"restore_failed":          "No se pudo restaurar el servicio. Intenta de nuevo.",
 		"code_failed":             "No se pudo generar el código de enrolamiento.",
+		"code_lost":               "El código SÍ se emitió, pero no se pudo mostrar. Ese código queda inservible: emite uno nuevo.",
 	})
 
 	flashSuccesses = sharedweb.NewFlashCatalog("Acción completada.", map[string]string{

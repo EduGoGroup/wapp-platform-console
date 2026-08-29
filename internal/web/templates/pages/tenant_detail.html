@@ -27,19 +27,6 @@
     </div>
 </div>
 
-{{ if .EnrollmentCode }}
-<div class="wapp-snackbar wapp-snackbar--success wapp-snackbar--roomy">
-    <h3 class="mb-2">🔑 Código de Enrolamiento Generado (Un solo uso)</h3>
-    <p class="mb-3">Copia este código y configúralo en el Edge del cliente. <strong>No se volverá a mostrar.</strong></p>
-    <div class="enrollment-code-box">
-        {{ .EnrollmentCode }}
-    </div>
-    {{ if .CodeExpiresAt }}
-    <p class="enrollment-code-expiry">Vence: {{ .CodeExpiresAt }}</p>
-    {{ end }}
-</div>
-{{ end }}
-
 <div class="tenant-detail-grid">
     <div class="wapp-card">
         <h2 class="panel-heading">Instalaciones (Edge Fleet)</h2>
