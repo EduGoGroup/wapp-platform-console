@@ -223,13 +223,15 @@ func (h *AuthHandler) refreshSession(c *gin.Context, refreshToken string) (*iam.
 // Va vacío en el GET inicial.
 func (h *AuthHandler) renderLogin(c *gin.Context, status int, errMsg, email string) {
 	c.HTML(status, "base.html", gin.H{
-		"Title":           "Iniciar sesión",
-		"Subtitle":        "Consola de Plataforma",
-		"ContentTemplate": "login.html",
-		"Error":           errMsg,
-		"Email":           email,
-		"CSRFToken":       webgin.CSRFTokenFromContext(c),
-		"Nonce":           webgin.NonceFromContext(c),
-		"IsAuthenticated": false,
+		"Title":                   "Iniciar sesión",
+		"Subtitle":                "Consola de Plataforma",
+		"ContentTemplate":         "login.html",
+		"Error":                   errMsg,
+		"Email":                   email,
+		"CSRFToken":               webgin.CSRFTokenFromContext(c),
+		"Nonce":                   webgin.NonceFromContext(c),
+		"IsAuthenticated":         false,
+		"EnableAlphaTestAccounts": h.cfg.EnableAlphaTestAccounts,
+		"AlphaTestPassword":       h.cfg.AlphaTestPassword,
 	})
 }

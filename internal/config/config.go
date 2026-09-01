@@ -41,6 +41,15 @@ type Config struct {
 	IdleTimeout       time.Duration
 	ShutdownTimeout   time.Duration
 	UpstreamTimeout   time.Duration
+
+	// EnableAlphaTestAccounts habilita el selector de "Usuario de prueba (Alpha)" en el login: el
+	// mismo atajo que ya vive en wapp-guardian-bff y wapp-edge-agent (WAPP_ALPHA_TEST_ACCOUNTS,
+	// alias WAPP_ENABLE_ALPHA_LOGIN). Default false. Se retira por completo al cerrar la fase alpha.
+	EnableAlphaTestAccounts bool
+
+	// AlphaTestPassword autocompleta el campo de contraseña del selector Alpha. Sale de
+	// WAPP_ALPHA_TEST_PASSWORD; vacía por defecto, y sin efecto si EnableAlphaTestAccounts es false.
+	AlphaTestPassword string
 }
 
 // Load resuelve la configuración desde variables de entorno con prefijo WAPP_.
@@ -77,5 +86,8 @@ func Load() Config {
 
 		ShutdownTimeout: time.Duration(l.GetInt("CONSOLE_SHUTDOWN_TIMEOUT_SECS", 10)) * time.Second,
 		UpstreamTimeout: time.Duration(l.GetInt("CONSOLE_UPSTREAM_TIMEOUT_SECS", 20)) * time.Second,
+
+		EnableAlphaTestAccounts: l.GetBool("ALPHA_TEST_ACCOUNTS", l.GetBool("ENABLE_ALPHA_LOGIN", false)),
+		AlphaTestPassword:       l.GetString("ALPHA_TEST_PASSWORD", ""),
 	}
 }
