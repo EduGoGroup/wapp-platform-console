@@ -236,7 +236,7 @@ func planLabels(t *testing.T, html string) []string {
 // listaba debajo las features de `basic`.
 //
 // La verdad la fija el cloud: `COALESCE(plan_id, 'basic')` en las dos consultas de entitlements
-// (wapp-cloud-platform, internal/entitlements/postgres.go:151 y :235). El rótulo tiene que nombrar
+// (wapp-cloud-platform, internal/modulos/acceso/entitlements/postgres.go:196 y :280). El rótulo tiene que nombrar
 // un plan del catálogo real, y el test falla si nombra cualquier otra cosa.
 func TestTenantViews_PlanMostradoExisteEnElCatalogo(t *testing.T) {
 	t.Parallel()

@@ -106,7 +106,7 @@ Un código desconocido cae al genérico y **nunca** se refleja texto crudo del u
 ## 2 · Las 10 rutas que CONSUME del listener admin `:8100`
 
 Todas con `Authorization: Bearer <access token de la sesión>` y `Accept: application/json`. Las 10
-verificadas contra `wapp-cloud-platform` (`registerAdminRoutes` en `internal/bootstrap/bootstrap.go`):
+verificadas contra `wapp-cloud-platform` (`registerAdminRoutes` en `internal/arranque/rutas_admin.go`):
 **ninguna huérfana, ninguna inventada**.
 
 | Método | Ruta upstream | Cuerpo | Permiso que exige el cloud |
